@@ -118,7 +118,7 @@ export default function Home() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.15, ease: 'easeOut' }}
-          className="text-5xl font-bold leading-tight tracking-tight sm:text-6xl lg:text-7xl"
+          className="text-3xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl"
           style={{ color: colors.textDark }}
         >
           {headingLines.map((line, li) => (
