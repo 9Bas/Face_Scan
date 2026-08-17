@@ -16,6 +16,7 @@ import {
   type PublicAlbum,
   type PublicPhoto,
 } from '../lib/galleryService'
+import { useAuth } from '../auth'
 import ImageCard from '../components/ImageCard'
 import ImageViewer from '../components/ImageViewer'
 import FaceSearchModal from '../components/FaceSearchModal'
@@ -37,6 +38,7 @@ function toPhoto(p: PublicPhoto): Photo {
 
 export default function Album() {
   const { albumId } = useParams()
+  const { user } = useAuth()
   const [album, setAlbum] = useState<PublicAlbum | null>(null)
   const [photos, setPhotos] = useState<PublicPhoto[]>([])
   const [loading, setLoading] = useState(true)
@@ -310,6 +312,7 @@ export default function Album() {
             index={viewerIndex}
             onClose={() => setViewerIndex(null)}
             onNavigate={setViewerIndex}
+            showTitle={!!user}
           />
         )}
       </AnimatePresence>
