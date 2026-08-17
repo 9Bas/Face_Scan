@@ -1,0 +1,16 @@
+name = "cs"
+main = "src/index.js"
+compatibility_date = "2025-03-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "56fc54d9fc549a059843fda5b701bb1b"
+
+# Public URL of this worker — set this as VITE_WORKER_URL in the frontend .env
+# (e.g. https://face-scan-worker.your-subdomain.workers.dev)
+
+# Secrets (do NOT commit real values): configure via
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "face-scan-images"
