@@ -36,3 +36,5 @@ __pycache__/
 !.env.example
 worker/.dev.vars
 worker/.wrangler
+
+.vercel
