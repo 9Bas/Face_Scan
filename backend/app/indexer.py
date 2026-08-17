@@ -86,7 +86,7 @@ def index_photo_by_id(photo_id: str, skip_thumbnail: bool = False) -> dict[str, 
     if not skip_thumbnail:
         index_thumbnail(photo, image_rgb)
 
-    faces = face_engine.detect_faces(image_rgb)
+    faces = face_engine.detect_faces(image_io.resize_for_detection(image_rgb))
     if not faces:
         return {
             "photo_id": photo_id,
