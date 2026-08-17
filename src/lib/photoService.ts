@@ -207,10 +207,8 @@ export async function uploadPhotos(
     try {
       // Ask the Python AI backend to detect + index faces for each new photo.
       // Non-blocking; failures are silent (manual reindex_faces.py later).
-      const { indexPhoto } = await import('./faceSearchService')
-      for (const p of uploaded) {
-        void indexPhoto(p.id)
-      }
+      const { indexPhotosSequentially } = await import('./faceSearchService')
+      void indexPhotosSequentially(uploaded.map((p) => p.id))
     } catch {
       /* non-critical */
     }

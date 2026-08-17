@@ -129,21 +129,45 @@ export async function searchByFace(
 /**
  * Ask backend to (re)index a specific uploaded photo.
  * Called after a successful photo upload — non-blocking; failures are swallowed.
+ * Retries once on 429 (rate-limited) after a short delay.
  */
 export async function indexPhoto(photoId: string): Promise<void> {
-  try {
-    const headers: Record<string, string> = {}
-    if (INDEX_API_KEY) headers['X-API-Key'] = INDEX_API_KEY
-    const resp = await fetch(
-      apiUrl(`/api/faces/index?photo_id=${encodeURIComponent(photoId)}`),
-      { method: 'POST', headers },
-    )
-    if (!resp.ok) {
-      const body = await resp.text().catch(() => '')
-      console.error(`[auto-index] ${photoId} -> ${resp.status} ${body}`)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const headers: Record<string, string> = {}
+      if (INDEX_API_KEY) headers['X-API-Key'] = INDEX_API_KEY
+      const resp = await fetch(
+        apiUrl(`/api/faces/index?photo_id=${encodeURIComponent(photoId)}`),
+        { method: 'POST', headers },
+      )
+      if (resp.status === 429 && attempt === 0) {
+        await new Promise((r) => setTimeout(r, 1500))
+        continue
+      }
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => '')
+        console.error(`[auto-index] ${photoId} -> ${resp.status} ${body}`)
+      }
+      return
+    } catch (err) {
+      console.error('[auto-index] fetch failed', err)
+      return
     }
-  } catch (err) {
-    console.error('[auto-index] fetch failed', err)
+  }
+}
+
+const INDEX_DELAY_MS = 800
+
+/**
+ * Index multiple photos sequentially with a delay between each request
+ * to avoid hitting Cloud Run rate limits (429).
+ */
+export async function indexPhotosSequentially(
+  photoIds: string[],
+): Promise<void> {
+  for (let i = 0; i < photoIds.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, INDEX_DELAY_MS))
+    await indexPhoto(photoIds[i])
   }
 }
 
