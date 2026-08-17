@@ -36,7 +36,7 @@ steps:
       - '--port'
       - '8000'
       - '--min-instances'
-      - '0'
+      - '1'
       - '--max-instances'
       - '10'
       - '--set-env-vars'
@@ -49,7 +49,8 @@ steps:
         R2_THUMB_API_KEY=N3wrLp65xEHeEc1dywCsV1MTkLnFvmA92GnV1ku2JCU=,
         FACE_PACK=buffalo_l,
         CORS_ORIGINS_CSV=*,
-        INDEX_API_KEY=
+        INDEX_API_KEY=,
+        OMP_NUM_THREADS=2
 
 options:
   logging: CLOUD_LOGGING_ONLY
