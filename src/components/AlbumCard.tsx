@@ -31,14 +31,14 @@ export default function AlbumCard({ album }: { album: PublicAlbum }) {
         </span>
       </div>
 
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col p-3 sm:p-4">
         <h3 className="text-base font-bold text-slate-900">{album.name}</h3>
         {album.description && (
           <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-slate-500">
             {album.description}
           </p>
         )}
-        <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 text-xs text-slate-400">
+        <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-2 text-xs text-slate-400 sm:gap-x-3 sm:pt-3">
           {album.event_date && <span>{album.event_date}</span>}
           {album.location && (
             <span className="inline-flex items-center gap-1">
