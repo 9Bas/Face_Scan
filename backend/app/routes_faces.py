@@ -47,7 +47,7 @@ async def index_photo(
     # Resolve image bytes
     if file is not None:
         data = await file.read()
-        image_rgb = image_io.load_image_bytes(data, max_dim=image_io._MAX_SEARCH_DIM)
+        image_rgb = image_io.load_image_bytes(data)
         # If photo_id not supplied, we cannot store by reference — return preview only.
         if not photo_id:
             faces = face_engine.detect_faces(image_rgb)
@@ -91,7 +91,7 @@ async def search_faces(
 
     data = await file.read()
     try:
-        image_rgb = image_io.load_image_bytes(data, max_dim=image_io._MAX_SEARCH_DIM)
+        image_rgb = image_io.load_image_bytes(data)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -175,7 +175,7 @@ async def health():
 async def debug_detect(file: UploadFile = File(...)):
     """Return detected faces + raw embeddings (for debugging/tests only)."""
     data = await file.read()
-    image_rgb = image_io.load_image_bytes(data, max_dim=image_io._MAX_SEARCH_DIM)
+    image_rgb = image_io.load_image_bytes(data)
     faces = face_engine.detect_faces(image_rgb)
     return {
         "faces_detected": len(faces),
