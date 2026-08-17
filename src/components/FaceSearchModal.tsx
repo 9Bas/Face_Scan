@@ -11,7 +11,10 @@ import {
 } from 'lucide-react'
 import { type Photo, downloadPhoto } from '../data'
 import { searchByFace } from '../lib/faceSearchService'
-import { useAuth } from '../auth'
+// Staff debug — similarity/faces UI is disabled (commented out). To re-enable:
+//  1. restore `type FaceSearchResult` in the import above
+//  2. restore the `useAuth` import + `isStaff`/`user` lines
+//  3. restore `rawResults`/`facesDetected` state, the setters, and the JSX blocks below
 import ImageCard from './ImageCard'
 import ImageViewer from './ImageViewer'
 
@@ -30,8 +33,8 @@ export default function FaceSearchModal({
   scopeLabel,
   albumId,
 }: FaceSearchModalProps) {
-  const { user } = useAuth()
-  const isStaff = !!user
+  // const { user } = useAuth() // staff debug
+  // const isStaff = !!user // staff-only similarity/debug UI is disabled
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [fileName, setFileName] = useState('')
@@ -370,7 +373,6 @@ export default function FaceSearchModal({
             index={viewerIndex}
             onClose={() => setViewerIndex(null)}
             onNavigate={setViewerIndex}
-            showTitle={isStaff}
           />
         )}
       </AnimatePresence>

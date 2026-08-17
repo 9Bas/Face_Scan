@@ -26,8 +26,6 @@ export interface ImageViewerProps {
   index: number
   onClose: () => void
   onNavigate: (index: number) => void
-  /** Show photo title/filename at the bottom. Defaults to true. */
-  showTitle?: boolean
 }
 
 export default function ImageViewer({
@@ -35,7 +33,6 @@ export default function ImageViewer({
   index,
   onClose,
   onNavigate,
-  showTitle = true,
 }: ImageViewerProps) {
   const total = photos.length
   const [downloading, setDownloading] = useState(false)
@@ -155,7 +152,7 @@ export default function ImageViewer({
         )}
       </div>
 
-      {showTitle && <p className="pb-5 text-center text-sm text-white/60">{photo.title}</p>}
+      <p className="pb-5 text-center text-sm text-white/60">{photo.title}</p>
     </motion.div>
   )
 }
