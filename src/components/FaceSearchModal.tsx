@@ -221,7 +221,7 @@ export default function FaceSearchModal({
                         <img
                           src={preview}
                           alt="Selected face"
-                          className="h-full w-full object-cover"
+                          className="absolute inset-0 h-full w-full object-cover"
                         />
                         <button
                           type="button"
