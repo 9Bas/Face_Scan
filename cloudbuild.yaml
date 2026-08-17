@@ -51,6 +51,9 @@ steps:
         CORS_ORIGINS_CSV=*,
         INDEX_API_KEY=
 
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 images:
   - 'gcr.io/$PROJECT_ID/face-scan-api:$COMMIT_SHA'
 
