@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # System deps for opencv-python-headless + onnxruntime.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libgl1 libglib2.0-0 curl \
+        libgl1 libglib2.0-0 curl g++ \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
