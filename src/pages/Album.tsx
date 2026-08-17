@@ -169,7 +169,7 @@ export default function Album() {
 
   return (
     <PageFade>
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-14 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
         <Link
           to="/gallery"
           className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-brand-700"
@@ -202,51 +202,45 @@ export default function Album() {
           </div>
 
           {/* Selection toolbar */}
-          <div className="ml-auto flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             {!selectMode ? (
               <button
                 type="button"
                 onClick={enterSelectMode}
-                className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 sm:px-4 sm:py-2.5 sm:text-sm"
+                className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
               >
                 เลือกภาพ
               </button>
             ) : (
               <>
-                <span className="mr-1 text-xs font-medium text-slate-500">
+                <span className="mr-1 text-sm font-medium text-slate-500">
                   {selected.size} ถูกเลือก
                 </span>
                 <button
                   type="button"
                   onClick={allSelected ? clearAll : selectAll}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 sm:gap-2 sm:px-3.5 sm:py-2.5 sm:text-sm"
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
                 >
-                  <CheckCheck size={14} className="sm:hidden" />
-                  <CheckCheck size={16} className="hidden sm:block" />
-                  {allSelected ? 'ล้าง' : 'เลือกทั้งหมด'}
+                  <CheckCheck size={16} />
+                  {allSelected ? 'ล้างการเลือก' : 'เลือกทั้งหมด'}
                 </button>
                 <button
                   type="button"
                   onClick={downloadSelected}
                   disabled={downloading || selected.size === 0}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-2.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
+                  className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
                 >
                   {downloading ? (
-                    <Loader2 size={14} className="animate-spin sm:hidden" />
+                    <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <Download size={14} className="sm:hidden" />
-                  )}
-                  {downloading ? (
-                    <Loader2 size={16} className="hidden animate-spin sm:block" />
-                  ) : (
-                    <Download size={16} className="hidden sm:block" />
+                    <Download size={16} />
                   )}
                   ดาวน์โหลด
                 </button>
                 <button
                   type="button"
                   onClick={exitSelectMode}
-                  className="rounded-xl bg-white px-2.5 py-2 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 sm:px-3.5 sm:py-2.5 sm:text-sm"
+                  className="rounded-xl bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
                 >
                   ยกเลิก
                 </button>
@@ -260,7 +254,7 @@ export default function Album() {
           type="button"
           onClick={() => setSearchOpen(true)}
           disabled={photos.length === 0}
-          className="group mb-6 flex w-full items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50/60 px-3 py-3 text-left transition-all hover:border-brand-400 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-3.5"
+          className="group mb-6 flex w-full items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50/60 px-4 py-3.5 text-left transition-all hover:border-brand-400 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50"
         >{/*className="group mb-6 ml-auto flex items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50/60 px-4 py-3.5 text-left transition-all hover:border-brand-400 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50" */}
           <span className="inline-flex rounded-xl bg-brand-600 p-2 text-white shadow-sm shadow-brand-600/30 transition-transform group-hover:scale-105">
             <ScanFace size={20} />

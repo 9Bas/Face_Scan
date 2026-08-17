@@ -35,7 +35,7 @@ export default function StatsCard({
           </span>
         )}
       </div>
-      <p className="mt-4 text-xl font-bold text-slate-900 sm:text-2xl">{value}</p>
+      <p className="mt-4 text-2xl font-bold text-slate-900">{value}</p>
       <p className="mt-0.5 text-sm text-slate-500">{label}</p>
     </motion.div>
   )

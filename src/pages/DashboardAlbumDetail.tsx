@@ -196,7 +196,7 @@ export default function DashboardAlbumDetail() {
           {album.description && (
             <p className="mt-2 max-w-2xl text-slate-500">{album.description}</p>
           )}
-          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-slate-400 sm:gap-x-4">
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-400">
             <span className="inline-flex items-center gap-1.5">
               <Images size={14} className="text-brand-600" />
               {photos.length} รูป
@@ -245,12 +245,12 @@ export default function DashboardAlbumDetail() {
           </h2>
           {/* Bulk select toolbar */}
           {photos.length > 0 && (
-            <div className="ml-auto flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               {!selectMode ? (
                 <button
                   type="button"
                   onClick={() => setSelectMode(true)}
-                  className="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 sm:px-3.5 sm:py-2"
+                  className="rounded-xl bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
                 >
                   เลือก
                 </button>
@@ -262,18 +262,18 @@ export default function DashboardAlbumDetail() {
                   <button
                     type="button"
                     onClick={allSelected ? clearAll : selectAll}
-                    className="inline-flex items-center gap-1 rounded-xl bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 sm:gap-1.5 sm:px-3 sm:py-2"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
                   >
-                    <CheckCheck size={13} />
+                    <CheckCheck size={14} />
                     {allSelected ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setBulkTarget(selected.size)}
                     disabled={selected.size === 0}
-                    className="inline-flex items-center gap-1 rounded-xl bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50 sm:gap-1.5 sm:px-3 sm:py-2"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={14} />
                     ลบที่เลือก
                   </button>
                   <button
@@ -282,7 +282,7 @@ export default function DashboardAlbumDetail() {
                       setSelectMode(false)
                       setSelected(new Set())
                     }}
-                    className="rounded-xl bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 sm:px-3 sm:py-2"
+                    className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
                   >
                     ยกเลิก
                   </button>
@@ -339,7 +339,7 @@ export default function DashboardAlbumDetail() {
                         type="button"
                         onClick={() => setDeleteTarget(p)}
                         aria-label="ลบรูป"
-                        className="absolute right-2 top-2 rounded-lg bg-white/90 p-1.5 text-slate-600 shadow-sm backdrop-blur transition-all sm:opacity-0 sm:group-hover:opacity-100 hover:bg-white hover:text-red-600"
+                        className="absolute right-2 top-2 rounded-lg bg-white/90 p-1.5 text-slate-600 shadow-sm backdrop-blur transition-all opacity-0 group-hover:opacity-100 hover:bg-white hover:text-red-600"
                       >
                         <Trash2 size={14} />
                       </button>

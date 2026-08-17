@@ -53,7 +53,7 @@ export default function Gallery() {
 
   return (
     <PageFade>
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-14 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
         <Reveal className="mb-6 sm:mb-8">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-600">
             <LayoutGrid size={15} />
@@ -72,8 +72,8 @@ export default function Gallery() {
         {/* Category filter tabs */}
         {!loading && allAlbums.length > 0 && (
           <Reveal delay={0.05} className="mb-8">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm font-semibold text-slate-400">
-              <span className="mr-1 shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-sm font-semibold text-slate-400">
                 Filter:
               </span>
               {categories.map((cat) => {
@@ -85,7 +85,7 @@ export default function Gallery() {
                     onClick={() => toggle(cat.id)}
                     whileTap={{ scale: 0.94 }}
                     className={[
-                      'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:px-4 sm:py-2 sm:text-sm',
+                      'rounded-full px-4 py-2 text-sm font-semibold transition-colors',
                       isOn
                         ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/20'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200',

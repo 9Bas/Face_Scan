@@ -207,7 +207,7 @@ export default function DashboardAlbums() {
                 </span>
               </Link>
 
-              <div className="flex flex-1 flex-col p-3 sm:p-4">
+              <div className="flex flex-1 flex-col p-4">
                 <Link to={`/dashboard/albums/${album.id}`}>
                   <h3 className="text-base font-bold text-slate-900 hover:text-brand-700">
                     {album.name}
@@ -218,7 +218,7 @@ export default function DashboardAlbums() {
                     {album.description}
                   </p>
                 )}
-                <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-2 text-xs text-slate-400 sm:gap-x-3 sm:pt-3">
+                <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 text-xs text-slate-400">
                   {album.category && (
                     <span className="rounded-full bg-brand-50 px-2 py-0.5 font-semibold text-brand-700">
                       {categoryLabel[album.category]}
@@ -240,7 +240,7 @@ export default function DashboardAlbums() {
               </div>
 
               {/* Actions */}
-              <div className="absolute right-3 top-3 flex gap-1.5 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+              <div className="absolute right-3 top-3 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
                 <button
                   type="button"
                   onClick={() => openEdit(album)}
