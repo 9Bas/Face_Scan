@@ -393,7 +393,7 @@ export default function DashboardAlbumDetail() {
       <ConfirmDialog
         open={bulkTarget !== null}
         title={`ลบรูป ${bulkTarget ?? 0} รูป`}
-        message="รูปที่เลือกทั้งหมดจะถูกลบถาวร (ไฟล์ + ฐานข้อมูล) และไม่สามารถกู้คืนได้"
+        message="รูปที่เลือกทั้งหมดจะถูกลบถาวร"
         destructive
         confirmLabel="ลบทั้งหมด"
         loading={bulkLoading}

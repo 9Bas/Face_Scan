@@ -129,6 +129,8 @@ export default function AlbumFormDialog({
                       type="date"
                       value={eventDate}
                       onChange={(e) => setEventDate(e.target.value)}
+                      min="1900-01-01"
+                      max="2099-12-31"
                       className="input"
                     />
                   </Field>
