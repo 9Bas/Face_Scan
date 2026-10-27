@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Images, ImageIcon, Plus } from 'lucide-react'
+import { Images, ImageIcon, Plus, Trash2 } from 'lucide-react'
 import { supabaseConfigured } from '../lib/supabaseClient'
 import { useAuth } from '../auth'
 import { albums as mockAlbums } from '../data'
 import { listMyAlbums, type AlbumWithMeta } from '../lib/albumService'
+import { listDeletionRequests } from '../lib/deletionRequestService'
 import { storage } from '../lib/storage'
 import StatsCard from '../components/dashboard/StatsCard'
 import { PageFade } from '../components/motion'
@@ -13,6 +14,7 @@ import { PageFade } from '../components/motion'
 interface OverviewStats {
   totalAlbums: number
   totalPhotos: number
+  pendingRequests: number
   recentAlbums: AlbumWithMeta[]
 }
 
@@ -31,12 +33,16 @@ export default function Dashboard() {
         return
       }
       try {
-        const myAlbums = await listMyAlbums(user.id)
+        const [myAlbums, pending] = await Promise.all([
+          listMyAlbums(user.id),
+          listDeletionRequests('pending').catch(() => []),
+        ])
         const recent = myAlbums.slice(0, 4)
         if (!active) return
         setStats({
           totalAlbums: myAlbums.length,
           totalPhotos: myAlbums.reduce((n, a) => n + a.photo_count, 0),
+          pendingRequests: pending.length,
           recentAlbums: recent,
         })
       } catch {
@@ -45,6 +51,7 @@ export default function Dashboard() {
           setStats({
             totalAlbums: mockAlbums.length,
             totalPhotos: mockAlbums.reduce((n, a) => n + a.photos.length, 0),
+            pendingRequests: 0,
             recentAlbums: [],
           })
         }
@@ -87,6 +94,15 @@ export default function Dashboard() {
           value={stats.totalPhotos}
           delay={0.08}
         />
+        <Link to="/dashboard/requests" className="block">
+          <StatsCard
+            icon={<Trash2 size={22} />}
+            label="คำขอลบรูปภาพ"
+            value={stats.pendingRequests}
+            hint={stats.pendingRequests > 0 ? 'รอดำเนินการ' : undefined}
+            delay={0.16}
+          />
+        </Link>
       </div>
 
       {/* Quick actions */}
