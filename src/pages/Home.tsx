@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import DancingLetters from '../components/DancingLetters'
 import { supabase, supabaseConfigured } from '../lib/supabaseClient'
 import { albums as mockAlbums } from '../data'
 
-const headingLines = ['ค้นหาภาพของคุณ', 'ด้วย Face AI']
 const subtext =
   'แกลเลอรี่รวมภาพกิจกรรม อัพโหลดรูปตัวเองแล้วให้ AI ช่วยหาภาพของคุณจากกิจกรรม'
 
@@ -65,32 +65,7 @@ export default function Home() {
       className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center overflow-hidden px-6 py-16"
       style={{ backgroundColor: colors.offWhite }}
     >
-      {/* ── Animated expanding rings ────────────────────── */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        {[300, 500, 700, 900].map((size, i) => (
-          <motion.div
-            key={size}
-            className="absolute rounded-full"
-            style={{
-              width: size,
-              height: size,
-              border: `1px solid rgba(67,160,71,0.12)`,
-            }}
-            animate={{
-              opacity: [0, 1, 0],
-              scale: [0.9, 1, 0.9],
-            }}
-            transition={{
-              duration: 8,
-              repeat: Infinity,
-              ease: 'easeInOut',
-              delay: i * 1.5,
-            }}
-          />
-        ))}
-      </div>
-
-      <div className="relative z-10 flex flex-col items-center text-center">
+<div className="relative z-10 flex flex-col items-center text-center">
         {/* ── Badge ──────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -114,35 +89,26 @@ export default function Home() {
         </motion.div>
 
         {/* ── Title ──────────────────────────────────────── */}
-        <motion.h1
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.15, ease: 'easeOut' }}
+        <h1
           className="text-3xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl"
           style={{ color: colors.textDark }}
         >
-          {headingLines.map((line, li) => (
-            <span key={li} className="block">
-              {li === 1 ? (
-                <>
-                  ด้วย{' '}
-                  <span
-                    style={{
-                      background: `linear-gradient(135deg, ${colors.greenVivid}, ${colors.greenDeep})`,
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      backgroundClip: 'text',
-                    }}
-                  >
-                    Face AI
-                  </span>
-                </>
-              ) : (
-                line
-              )}
-            </span>
-          ))}
-        </motion.h1>
+          <span className="block">
+            <DancingLetters text="ค้นหาภาพของคุณ" />
+          </span>
+          <span className="block">
+            <DancingLetters text="ด้วย " />
+            <DancingLetters
+              text="Face AI"
+              letterStyle={{
+                background: `linear-gradient(135deg, ${colors.greenVivid}, ${colors.greenDeep})`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+            />
+          </span>
+        </h1>
 
         {/* ── Subtitle ───────────────────────────────────── */}
         <motion.p
@@ -176,7 +142,7 @@ export default function Home() {
                 className="text-3xl font-bold sm:text-4xl"
                 style={{ color: colors.greenDeep }}
               >
-                {s.value}
+                <DancingLetters text={s.value} />
               </div>
               <div
                 className="mt-0.5 text-sm"

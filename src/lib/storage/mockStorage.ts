@@ -19,12 +19,13 @@ export const mockStorage: IStorage = {
   async uploadPhoto(
     _file: File,
     albumId: string,
+    _signal?: AbortSignal,
   ): Promise<UploadResult> {
     // Fake a deterministic path that matches R2 layout for later migration.
     const name = `${Date.now()}-${Math.round(Math.random() * 1e6)}`
     return {
       storagePath: `albums/${albumId}/original/${name}.jpg`,
-      thumbnailPath: null,
+      thumbnailPath: `albums/${albumId}/thumbs/${name}.jpg`,
       fileSize: _file.size,
       mimeType: _file.type || 'image/jpeg',
     }

@@ -1,5 +1,6 @@
 import { supabase, supabaseConfigured } from '../supabaseClient'
 import type { IStorage, UploadResult } from './types'
+import { createThumbnail } from './thumbnail'
 
 const BUCKET = 'photos'
 
@@ -24,13 +25,13 @@ export const supabaseStorage: IStorage = {
     if (!thumbnailPath) return null
     return this.getViewUrl(thumbnailPath)
   },
-  async uploadPhoto(file: File, albumId: string): Promise<UploadResult> {
+  async uploadPhoto(file: File, albumId: string, _signal?: AbortSignal): Promise<UploadResult> {
     if (!supabaseConfigured || !supabase) {
       // mock path — no real upload
       const name = `${Date.now()}-${Math.round(Math.random() * 1e6)}`
       return {
         storagePath: `albums/${albumId}/original/${name}.jpg`,
-        thumbnailPath: null,
+        thumbnailPath: `albums/${albumId}/thumbs/${name}.jpg`,
         fileSize: file.size,
         mimeType: file.type || 'image/jpeg',
       }
@@ -45,11 +46,29 @@ export const supabaseStorage: IStorage = {
         upsert: false,
       })
     if (error) throw new Error(`Upload to Supabase failed: ${error.message}`)
+
+    // Generate + store a client-side thumbnail so grids render immediately.
+    // Single decode — dimensions come back from the same pass.
+    const { blob: thumb, width, height } = await createThumbnail(file)
+    let thumbnailPath: string | null = null
+    if (thumb) {
+      const thumbPath = path.replace('/original/', '/thumbs/')
+      const { error: thumbErr } = await sb.storage
+        .from(BUCKET)
+        .upload(thumbPath, thumb, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        })
+      if (!thumbErr) thumbnailPath = thumbPath
+    }
+
     return {
       storagePath: path,
-      thumbnailPath: null,
+      thumbnailPath,
       fileSize: file.size,
       mimeType: file.type || 'image/jpeg',
+      width: width || undefined,
+      height: height || undefined,
     }
   },
   async deletePhoto(storagePath: string, thumbnailPath: string | null): Promise<void> {

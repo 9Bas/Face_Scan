@@ -9,6 +9,7 @@ const titles: Record<string, { title: string; subtitle?: string }> = {
     subtitle: 'อัลบั้มและรูปภาพทั้งหมด',
   },
   '/dashboard/albums': { title: 'อัลบั้ม', subtitle: 'จัดการอัลบั้มของคุณ' },
+  '/dashboard/requests': { title: 'คำขอลบรูปภาพ', subtitle: 'จัดการคำขอจากผู้ใช้งาน' },
   '/dashboard/account': { title: 'บัญชี', subtitle: 'ข้อมูลช่างภาพ' },
 }
 
@@ -23,6 +24,8 @@ export default function DashboardLayout() {
   const meta =
     titles[base ?? '/dashboard'] ?? titles['/dashboard']
 
+  const isAlbumsToolbar = location.pathname === '/dashboard/albums'
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
       <DashboardSidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -33,6 +36,12 @@ export default function DashboardLayout() {
           subtitle={meta.subtitle}
           onMenu={() => setMenuOpen(true)}
         />
+        {isAlbumsToolbar && (
+          <div
+            id="dashboard-page-toolbar"
+            className="border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8"
+          />
+        )}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>

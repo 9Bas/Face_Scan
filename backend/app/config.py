@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     r2_thumb_api_key: str = ""
 
     # --- InsightFace ---
-    # Model pack: buffalo_l (ArcFace R100, 512-dim), buffalo_m, buffalo_s.
+    # Model pack: buffalo_l (rec model w600k_r50 / ArcFace loss, 512-dim), buffalo_m, buffalo_s.
     face_pack: str = "buffalo_l"
     face_ctx_id: int = -1  # -1 = CPU
     # Detection size as CSV "W,H".

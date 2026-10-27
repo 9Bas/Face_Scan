@@ -19,28 +19,39 @@ interface UploadDropzoneProps {
   onUploaded: () => void
   /** Variant — modal (inside album detail) vs inline (page). */
   variant?: 'inline' | 'modal'
+  /** Check NSFW for public album */
+  isPublicAlbum?: boolean
 }
 
 export default function UploadDropzone({
   albumId,
   onUploaded,
   variant = 'inline',
+  isPublicAlbum = false,
 }: UploadDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const cancelRef = useRef<AbortController | null>(null)
   const [dragging, setDragging] = useState(false)
   const [progress, setProgress] = useState<UploadProgress | null>(null)
   const [busy, setBusy] = useState(false)
   const [summary, setSummary] = useState<{
     uploaded: number
     failed: number
+    cancelled: number
   } | null>(null)
+
+  const ACCEPT = 'image/jpeg,image/png,.jpg,.jpeg,.png'
+  const isAllowed = (f: File) =>
+    f.type === 'image/jpeg' ||
+    f.type === 'image/png' ||
+    /\.(jpe?g|png)$/i.test(f.name)
 
   const handleFiles = useCallback(
     async (files: FileList | File[]) => {
-      const arr = Array.from(files).filter((f) =>
-        f.type.startsWith('image/'),
-      )
+      const arr = Array.from(files).filter(isAllowed)
       if (arr.length === 0) return
+      const ctrl = new AbortController()
+      cancelRef.current = ctrl
       setBusy(true)
       setSummary(null)
       setProgress({
@@ -58,13 +69,22 @@ export default function UploadDropzone({
             : undefined,
         })),
       })
-      const res = await uploadPhotos(albumId, arr, setProgress)
+      const res = await uploadPhotos(albumId, arr, setProgress, ctrl.signal, { isPublicAlbum })
+      cancelRef.current = null
       setBusy(false)
-      setSummary({ uploaded: res.uploaded.length, failed: res.failed.length })
+      setSummary({
+        uploaded: res.uploaded.length,
+        failed: res.failed.length,
+        cancelled: res.cancelled.length,
+      })
       if (res.uploaded.length > 0) onUploaded()
     },
-    [albumId, onUploaded],
+    [albumId, onUploaded, isPublicAlbum],
   )
+
+  const stopUpload = () => {
+    cancelRef.current?.abort()
+  }
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -102,7 +122,7 @@ export default function UploadDropzone({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={ACCEPT}
         multiple
         className="hidden"
         onChange={onPickChange}
@@ -117,7 +137,7 @@ export default function UploadDropzone({
         ลากรูปมาวาง หรือคลิกเพื่อเลือก
       </p>
       <p className="mt-1 text-xs text-slate-400">
-        รองรับหลายไฟล์ — JPG / PNG / WEBP
+        รองรับเฉพาะไฟล์ JPG และ PNG
       </p>
     </div>
   )
@@ -141,11 +161,22 @@ export default function UploadDropzone({
                 <span>
                   {progress.done}/{progress.total} ไฟล์
                 </span>
-                {progress.currentName && (
-                  <span className="truncate pl-3 text-slate-400">
-                    {progress.currentName}
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  {progress.currentName && (
+                    <span className="max-w-[220px] truncate text-slate-400">
+                      {progress.currentName}
+                    </span>
+                  )}
+                  {busy && (
+                    <button
+                      type="button"
+                      onClick={stopUpload}
+                      className="inline-flex items-center rounded-lg border border-red-600 bg-red-600 px-3 py-1 font-bold text-white transition-colors hover:bg-red-700"
+                    >
+                      ยกเลิก
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
                 <motion.div
@@ -179,6 +210,11 @@ export default function UploadDropzone({
                       • ล้มเหลว {summary.failed} รูป
                     </span>
                   )}
+                  {summary.cancelled > 0 && (
+                    <span className="ml-2 text-slate-400">
+                      • ยกเลิก {summary.cancelled} รูป
+                    </span>
+                  )}
                 </p>
                 <button
                   type="button"
@@ -205,6 +241,8 @@ function FileRow({ f }: { f: UploadFileState }) {
           <img
             src={f.previewUrl}
             alt={f.name}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover"
           />
         ) : f.status === 'done' ? (
@@ -230,6 +268,9 @@ function FileRow({ f }: { f: UploadFileState }) {
         )}
         {f.status === 'error' && (
           <span className="text-red-600">{f.error ?? 'ล้มเหลว'}</span>
+        )}
+        {f.status === 'cancelled' && (
+          <span className="text-slate-400">ยกเลิก</span>
         )}
       </span>
     </li>

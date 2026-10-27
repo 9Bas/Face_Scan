@@ -58,7 +58,7 @@ export interface UploadFileState {
   id: string
   name: string
   size: number
-  status: 'pending' | 'uploading' | 'inserting' | 'done' | 'error'
+  status: 'pending' | 'uploading' | 'inserting' | 'done' | 'error' | 'cancelled'
   error?: string
   previewUrl?: string
   photoId?: string
@@ -88,6 +88,38 @@ function readImageDimensions(
 }
 
 /**
+ * Upload one file to storage, retrying transient failures. Long batches of
+ * large photos hit occasional network/server blips — a short retry avoids
+ * failing the whole batch over one flaky request. Non-transient (4xx) errors
+ * fail immediately.
+ */
+async function uploadWithRetry(
+  file: File,
+  albumId: string,
+  signal?: AbortSignal,
+  maxAttempts = 3,
+): Promise<Awaited<ReturnType<typeof storage.uploadPhoto>>> {
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    try {
+      return await storage.uploadPhoto(file, albumId, signal)
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') throw err
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+      lastErr = err
+      const msg = err instanceof Error ? err.message : ''
+      const status = /\((\d{3})\)/.exec(msg)?.[1]
+      if (status && ['400', '401', '403', '404'].includes(status)) throw err
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 1000 * attempt))
+      }
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('อัปโหลดล้มเหลว')
+}
+
+/**
  * Upload a batch of files into an album. Calls onProgress after each file.
  * Flow per file:
  *   1. storage.uploadPhoto  → R2 (via Worker when configured) / mock
@@ -99,7 +131,12 @@ export async function uploadPhotos(
   files: File[],
   onProgress: (p: UploadProgress) => void,
   signal?: AbortSignal,
-): Promise<{ uploaded: PhotoRow[]; failed: UploadFileState[] }> {
+  options?: { isPublicAlbum?: boolean },
+): Promise<{
+  uploaded: PhotoRow[]
+  failed: UploadFileState[]
+  cancelled: UploadFileState[]
+}> {
   const total = files.length
   const fileStates: UploadFileState[] = files.map((f, i) => ({
     id: `${Date.now()}-${i}`,
@@ -111,7 +148,9 @@ export async function uploadPhotos(
 
   const uploaded: PhotoRow[] = []
   const failed: UploadFileState[] = []
+  const cancelled: UploadFileState[] = []
   let done = 0
+  let cursor = 0
 
   const emit = (currentName: string | null) => {
     onProgress({
@@ -123,26 +162,52 @@ export async function uploadPhotos(
     })
   }
 
-  for (let i = 0; i < files.length; i++) {
-    if (signal?.aborted) break
-    const file = files[i]
-    const state = fileStates[i]
+  // Upload up to 3 files concurrently. Batching everything at once hammers
+  // the worker's free-plan CPU budget (7xx errors when many large multipart
+  // bodies parse simultaneously) — a small pool keeps it stable and fast.
+  const CONCURRENCY = 3
+
+  async function processOne(index: number) {
+    const state = fileStates[index]
+    if (signal?.aborted) {
+      state.status = 'cancelled'
+      cancelled.push(state)
+      done += 1
+      emit(null)
+      return
+    }
     state.status = 'uploading'
-    emit(file.name)
+    emit(files[index].name)
 
     try {
+      if (options?.isPublicAlbum) {
+        const { checkImageNsfw } = await import('./nsfwFilter')
+        const nsfw = await checkImageNsfw(files[index])
+        if (nsfw.blocked) {
+          state.status = 'error'
+          state.error = nsfw.reason ?? 'รูปภาพนี้ไม่ผ่านเกณฑ์'
+          failed.push(state)
+          done += 1
+          emit(null)
+          if (state.previewUrl) {
+            setTimeout(() => URL.revokeObjectURL(state.previewUrl!), 1000)
+            state.previewUrl = undefined
+          }
+          return
+        }
+      }
       const { storagePath, thumbnailPath, fileSize, mimeType, width, height } =
-        await storage.uploadPhoto(file, albumId)
+        await uploadWithRetry(files[index], albumId, signal)
       const dims =
         width && height
           ? { width, height }
-          : await readImageDimensions(file)
+          : await readImageDimensions(files[index])
 
       if (isMock) {
         const row: PhotoRow = {
-          id: `mock-photo-${Date.now()}-${i}`,
+          id: `mock-photo-${Date.now()}-${index}`,
           album_id: albumId,
-          filename: file.name,
+          filename: files[index].name,
           storage_path: storagePath,
           thumbnail_path: thumbnailPath,
           file_size: fileSize,
@@ -159,12 +224,12 @@ export async function uploadPhotos(
       } else {
         const sb = supabase as NonNullable<typeof supabase>
         state.status = 'inserting'
-        emit(file.name)
+        emit(files[index].name)
         const { data, error } = await sb
           .from('photos')
           .insert({
             album_id: albumId,
-            filename: file.name,
+            filename: files[index].name,
             storage_path: storagePath,
             thumbnail_path: thumbnailPath,
             file_size: fileSize,
@@ -181,9 +246,14 @@ export async function uploadPhotos(
         state.photoId = row.id
       }
     } catch (err) {
-      state.status = 'error'
-      state.error = err instanceof Error ? err.message : 'อัปโหลดล้มเหลว'
-      failed.push(state)
+      if (signal?.aborted) {
+        state.status = 'cancelled'
+        cancelled.push(state)
+      } else {
+        state.status = 'error'
+        state.error = err instanceof Error ? err.message : 'อัปโหลดล้มเหลว'
+        failed.push(state)
+      }
     } finally {
       done += 1
       emit(null)
@@ -193,6 +263,31 @@ export async function uploadPhotos(
         state.previewUrl = undefined
       }
     }
+  }
+
+  const workers = Array.from(
+    { length: Math.max(1, Math.min(CONCURRENCY, files.length)) },
+    async () => {
+      while (cursor < files.length) {
+        if (signal?.aborted) break
+        const i = cursor
+        cursor += 1
+        await processOne(i)
+      }
+    },
+  )
+  await Promise.all(workers)
+
+  // Anything left unprocessed after an abort is marked cancelled.
+  if (signal?.aborted) {
+    for (const state of fileStates) {
+      if (state.status === 'pending') {
+        state.status = 'cancelled'
+        cancelled.push(state)
+        done += 1
+      }
+    }
+    emit(null)
   }
 
   // After a successful batch, ensure the album has a cover (set to latest)
@@ -207,14 +302,14 @@ export async function uploadPhotos(
     try {
       // Ask the Python AI backend to detect + index faces for each new photo.
       // Non-blocking; failures are silent (manual reindex_faces.py later).
-      const { indexPhotosSequentially } = await import('./faceSearchService')
-      void indexPhotosSequentially(uploaded.map((p) => p.id))
+      const { indexPhotos } = await import('./faceSearchService')
+      void indexPhotos(uploaded.map((p) => p.id))
     } catch {
       /* non-critical */
     }
   }
 
-  return { uploaded, failed }
+  return { uploaded, failed, cancelled }
 }
 
 /** Delete a single photo: R2 first, then DB row. Refreshes album cover. */

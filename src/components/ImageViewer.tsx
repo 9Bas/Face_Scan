@@ -1,8 +1,12 @@
-import { Download } from 'lucide-react'
+import { Flag } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react'
-import { downloadPhoto, type Photo } from '../data'
+import { ChevronLeft, ChevronRight, Loader2, X, MessageSquareText } from 'lucide-react'
+import { type Photo } from '../data'
+import { useAuth } from '../auth'
+import { createDeletionRequest } from '../lib/deletionRequestService'
+import { Toast, type ToastState } from './Toast'
+import WatermarkOverlay from './WatermarkOverlay'
 
 /** Warm the browser cache for the neighboring images (instant next/prev). */
 function usePreload(photos: Photo[], index: number): void {
@@ -34,8 +38,12 @@ export default function ImageViewer({
   onClose,
   onNavigate,
 }: ImageViewerProps) {
+  const { user } = useAuth()
   const total = photos.length
-  const [downloading, setDownloading] = useState(false)
+  const [requesting, setRequesting] = useState(false)
+  const [toast, setToast] = useState<ToastState | null>(null)
+  const [showReasonModal, setShowReasonModal] = useState(false)
+  const [reason, setReason] = useState('')
   usePreload(photos, index)
 
   const prev = useCallback(
@@ -48,13 +56,32 @@ export default function ImageViewer({
     onNavigate,
   ])
 
-  const handleDownload = async () => {
-    if (downloading) return
-    setDownloading(true)
+  const handleRequestDelete = () => {
+    if (requesting || !user) {
+      if (!user) {
+        setToast({ id: Date.now(), message: 'กรุณาเข้าสู่ระบบเพื่อแจ้งขอลบรูป' })
+      }
+      return
+    }
+    setReason('')
+    setShowReasonModal(true)
+  }
+
+  const submitRequestDelete = async () => {
+    if (requesting || !user) return
+    setRequesting(true)
     try {
-      await downloadPhoto(photos[index])
+      await createDeletionRequest((photos[index] as any).id, user.id, user.email, reason.trim() || undefined)
+      setToast({ id: Date.now(), message: 'ส่งคำขอลบรูปเรียบร้อย' })
+      setShowReasonModal(false)
+      setReason('')
+    } catch (err) {
+      setToast({
+        id: Date.now(),
+        message: err instanceof Error ? err.message : 'ส่งคำขอลบไม่สำเร็จ',
+      })
     } finally {
-      setDownloading(false)
+      setRequesting(false)
     }
   }
 
@@ -87,22 +114,24 @@ export default function ImageViewer({
           {index + 1} / {total}
         </span>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={downloading}
-            aria-label="Download"
-            className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/20 disabled:opacity-60"
-          >
-            {downloading ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Download size={16} />
-            )}
-            <span className="hidden sm:inline">
-              {downloading ? 'Preparing…' : 'ดาวน์โหลด'}
-            </span>
-          </button>
+          {user && (
+            <button
+              type="button"
+              onClick={handleRequestDelete}
+              disabled={requesting}
+              aria-label="แจ้งขอลบรูป"
+              className="inline-flex items-center gap-2 rounded-full bg-rose-500/90 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-600 disabled:opacity-60"
+            >
+              {requesting ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Flag size={16} />
+              )}
+              <span className="hidden sm:inline">
+                {requesting ? 'กำลังส่ง…' : 'แจ้งลบรูป'}
+              </span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -128,16 +157,32 @@ export default function ImageViewer({
         )}
 
         <AnimatePresence mode="wait">
-          <motion.img
+          <motion.div
             key={photo.id}
-            src={photo.url}
-            alt={photo.title}
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
-          />
+            className="relative max-h-full max-w-full"
+            onContextMenu={(e) => e.preventDefault()}
+            onDragStart={(e) => e.preventDefault()}
+          >
+            <img
+              src={photo.url}
+              alt={photo.title}
+              onContextMenu={(e) => e.preventDefault()}
+              onDragStart={(e) => e.preventDefault()}
+              draggable={false}
+              className="max-h-full max-w-full rounded-lg object-contain shadow-2xl select-none"
+              style={{ WebkitTouchCallout: 'none' }}
+            />
+            <WatermarkOverlay />
+            <div
+              className="absolute inset-0"
+              onContextMenu={(e) => e.preventDefault()}
+              aria-hidden="true"
+            />
+          </motion.div>
         </AnimatePresence>
 
         {total > 1 && (
@@ -153,6 +198,68 @@ export default function ImageViewer({
       </div>
 
       <p className="pb-5 text-center text-sm text-white/60">{photo.title}</p>
+
+      <AnimatePresence>
+        {showReasonModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 px-4"
+            onClick={() => !requesting && setShowReasonModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-50">
+                  <MessageSquareText size={20} className="text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">แจ้งขอลบรูปภาพ</h3>
+                  <p className="text-sm text-slate-500">ระบุเหตุผล (ไม่บังคับ)</p>
+                </div>
+              </div>
+              <div className="px-6 py-4">
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="เช่น รูปนี้ไม่ต้องการให้แสดง หรือมีปัญหาด้านสิทธิ์..."
+                  rows={4}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-3">
+                <button
+                  type="button"
+                  onClick={() => !requesting && setShowReasonModal(false)}
+                  disabled={requesting}
+                  className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={submitRequestDelete}
+                  disabled={requesting}
+                  className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+                >
+                  {requesting && <Loader2 size={16} className="animate-spin" />}
+                  ส่งคำขอ
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </motion.div>
   )
 }

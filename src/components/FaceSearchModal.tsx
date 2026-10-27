@@ -2,6 +2,7 @@ import { useRef, useState, type ChangeEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Camera,
+  Check,
   Download,
   ImageUp,
   Loader2,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react'
 import { type Photo, downloadPhoto } from '../data'
 import { searchByFace } from '../lib/faceSearchService'
+import { useAuth } from '../auth'
 // Staff debug — similarity/faces UI is disabled (commented out). To re-enable:
 //  1. restore `type FaceSearchResult` in the import above
 //  2. restore the `useAuth` import + `isStaff`/`user` lines
@@ -33,8 +35,8 @@ export default function FaceSearchModal({
   scopeLabel,
   albumId,
 }: FaceSearchModalProps) {
-  // const { user } = useAuth() // staff debug
-  // const isStaff = !!user // staff-only similarity/debug UI is disabled
+  const { user } = useAuth()
+  // const isStaff = !!user // staff debug
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [fileName, setFileName] = useState('')
@@ -46,6 +48,8 @@ export default function FaceSearchModal({
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [searchError, setSearchError] = useState('')
   const [downloading, setDownloading] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const lastFileRef = useRef<File | null>(null)
 
   const reset = () => {
@@ -53,6 +57,8 @@ export default function FaceSearchModal({
     setFileName('')
     setStatus('idle')
     setResults([])
+    setSelectMode(false)
+    setSelected(new Set())
     // setRawResults([]) // staff debug
     // setFacesDetected(0) // staff debug
     if (fileRef.current) fileRef.current.value = ''
@@ -82,6 +88,8 @@ export default function FaceSearchModal({
     setStatus('loading')
     setSearchError('')
     setResults([])
+    setSelectMode(false)
+    setSelected(new Set())
     // setRawResults([]) // staff debug
     setStatusLabel('กำลังสแกนใบหน้าด้วย ArcFace…')
     try {
@@ -108,14 +116,36 @@ export default function FaceSearchModal({
   }
 
   const openViewer = (photo: Photo) => {
+    if (selectMode) return
     const i = results.findIndex((p) => p.id === photo.id)
     setViewerIndex(i >= 0 ? i : 0)
   }
 
-  const downloadAll = async () => {
-    if (downloading || results.length === 0) return
+  const toggleSelect = (photo: Photo) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(photo.id)) next.delete(photo.id)
+      else next.add(photo.id)
+      return next
+    })
+  }
+
+  const selectAll = () => setSelected(new Set(results.map((p) => p.id)))
+  const clearAll = () => setSelected(new Set())
+  const enterSelectMode = () => setSelectMode(true)
+  const exitSelectMode = () => {
+    setSelectMode(false)
+    setSelected(new Set())
+  }
+
+  const allSelected = results.length > 0 && selected.size === results.length
+
+  const downloadSelected = async () => {
+    if (!user) return
+    if (downloading || selected.size === 0) return
     setDownloading(true)
-    for (const photo of results) {
+    const items = results.filter((p) => selected.has(p.id))
+    for (const photo of items) {
       await downloadPhoto(photo)
       await new Promise((r) => setTimeout(r, 350))
     }
@@ -297,30 +327,54 @@ export default function FaceSearchModal({
                           <h3 className="text-base font-bold text-slate-900">
                             ผลการค้นหา
                           </h3>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-medium text-slate-500">
                               พบ {results.length} ภาพ
-                              {/* staff debug: faces detected
-                              {isStaff && facesDetected > 1
-                                ? ` · ตรวจพบ ${facesDetected} ใบหน้าในรูปค้นหา`
-                                : ''}
-                              */}
                             </span>
-                            {results.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={downloadAll}
-                                disabled={downloading}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
-                              >
-                                {downloading ? (
-                                  <Loader2 size={14} className="animate-spin" />
-                                ) : (
-                                  <Download size={14} />
-                                )}
-                                ดาวน์โหลดทั้งหมด
-                              </button>
-                            )}
+                            {results.length > 0 && user &&
+                              (!selectMode ? (
+                                <button
+                                  type="button"
+                                  onClick={enterSelectMode}
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
+                                >
+                                  เลือกภาพ
+                                </button>
+                              ) : (
+                                <>
+                                  <span className="text-xs font-medium text-slate-500">
+                                    {selected.size} ถูกเลือก
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={allSelected ? clearAll : selectAll}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
+                                  >
+                                    <Check size={14} />
+                                    {allSelected ? 'ล้างการเลือก' : 'เลือกทั้งหมด'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={downloadSelected}
+                                    disabled={downloading || selected.size === 0}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
+                                  >
+                                    {downloading ? (
+                                      <Loader2 size={14} className="animate-spin" />
+                                    ) : (
+                                      <Download size={14} />
+                                    )}
+                                    ดาวน์โหลด
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={exitSelectMode}
+                                    className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
+                                  >
+                                    ยกเลิก
+                                  </button>
+                                </>
+                              ))}
                           </div>
                         </div>
                         {results.length === 0 ? (
@@ -343,7 +397,13 @@ export default function FaceSearchModal({
                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                               {results.map((photo) => (
                                 <div key={photo.id} className="relative">
-                                  <ImageCard photo={photo} onClick={openViewer} />
+                                  <ImageCard
+                                    photo={photo}
+                                    onClick={openViewer}
+                                    selectable={selectMode}
+                                    selected={selected.has(photo.id)}
+                                    onToggleSelect={toggleSelect}
+                                  />
                                   {/* staff debug: per-photo similarity
                                   {isStaff && (
                                     <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">

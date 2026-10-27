@@ -1,5 +1,6 @@
 import type { IStorage, UploadResult } from './types'
 import { supabase, supabaseConfigured } from '../supabaseClient'
+import { createThumbnail } from './thumbnail'
 
 /**
  * R2 storage via our Cloudflare Worker proxy.
@@ -28,20 +29,30 @@ export const r2Storage: IStorage = {
     if (!thumbnailPath) return null
     return `${WORKER_URL}/view?path=${encodeURIComponent(thumbnailPath)}`
   },
-  async uploadPhoto(file: File, albumId: string): Promise<UploadResult> {
+  async uploadPhoto(file: File, albumId: string, signal?: AbortSignal): Promise<UploadResult> {
+    const { blob: thumb, width, height } = await createThumbnail(file)
     const fd = new FormData()
     fd.append('albumId', albumId)
     fd.append('file', file)
+    if (thumb) fd.append('thumb', thumb, 'thumb.jpg')
     const res = await fetch(`${WORKER_URL}/upload`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${await bearer()}` },
       body: fd,
+      signal,
     })
     if (!res.ok) {
       const msg = await res.text().catch(() => res.statusText)
       throw new Error(`Upload failed (${res.status}): ${msg}`)
     }
-    return (await res.json()) as UploadResult
+    const data = (await res.json()) as UploadResult
+    // The worker doesn't know the image size — attach it from the decode we
+    // already did for the thumbnail (avoids a second full-image decode).
+    return {
+      ...data,
+      width: width || undefined,
+      height: height || undefined,
+    }
   },
   async deletePhoto(storagePath: string, thumbnailPath: string | null): Promise<void> {
     const res = await fetch(`${WORKER_URL}/delete`, {

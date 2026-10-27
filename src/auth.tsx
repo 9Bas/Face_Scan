@@ -20,6 +20,7 @@ interface AuthContextValue {
   user: AppUser | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<AppUser>
+  signUp: (email: string, password: string, displayName?: string) => Promise<AppUser>
   signOut: () => Promise<void>
 }
 
@@ -130,21 +131,109 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!supabaseConfigured || !supabase) {
         await new Promise((r) => setTimeout(r, 500))
         if (!email || !password) throw new Error('กรุณากรอก email และรหัสผ่าน')
-        const uid = 'mock-' + btoa(email).slice(0, 12)
+        const normalizedEmail = email.trim().toLowerCase()
+        const uid = 'mock-' + btoa(normalizedEmail).slice(0, 12)
         localStorage.setItem(MOCK_KEY, JSON.stringify(uid))
-        const p = await mockLoadProfile(uid)
-        const u = toAppUser({ id: uid, email } as SupabaseUser, p)
+        const p: Profile = {
+          id: uid,
+          email: normalizedEmail,
+          display_name: normalizedEmail.split('@')[0],
+          role: normalizedEmail === 'admin@psru.ac.th' ? 'admin' : (normalizedEmail.includes('photographer') ? 'photographer' : 'user'),
+          created_at: new Date().toISOString(),
+        }
+        const u = toAppUser({ id: uid, email: normalizedEmail } as SupabaseUser, p)
         if (!u) throw new Error('โหลดข้อมูลผู้ใช้ไม่สำเร็จ')
         setUser(u)
         return u
       }
 
       // REAL path
-const sb = supabase as NonNullable<typeof supabase>
-      const { data, error } = await sb.auth.signInWithPassword({ email, password })
+      const sb = supabase as NonNullable<typeof supabase>
+      const normalizedEmail = email.trim().toLowerCase()
+      const { data, error } = await sb.auth.signInWithPassword({ email: normalizedEmail, password })
       if (error) throw new Error('ข้อมูลการเข้าสู่ระบบไม่ถูกต้อง')
       const prof = await fetchProfile(sb)
       const u = toAppUser(data.session!.user, prof)
+      if (!u) throw new Error('โหลดข้อมูลผู้ใช้ไม่สำเร็จ')
+      setUser(u)
+      return u
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const signUp = async (email: string, password: string, displayName?: string): Promise<AppUser> => {
+    setLoading(true)
+    try {
+      const normalizedEmail = email.trim().toLowerCase()
+      if (!normalizedEmail.endsWith('@psru.ac.th')) {
+        throw new Error('อนุญาตให้สมัครด้วยอีเมล @psru.ac.th เท่านั้น')
+      }
+
+      if (!supabaseConfigured || !supabase) {
+        await new Promise((r) => setTimeout(r, 500))
+        if (!password) throw new Error('กรุณากรอกรหัสผ่าน')
+        const uid = 'mock-' + btoa(normalizedEmail).slice(0, 12)
+        localStorage.setItem(MOCK_KEY, JSON.stringify(uid))
+        const p: Profile = {
+          id: uid,
+          email: normalizedEmail,
+          display_name: displayName?.trim() || normalizedEmail.split('@')[0],
+          role: 'user',
+          created_at: new Date().toISOString(),
+        }
+        const u = toAppUser({ id: uid, email: normalizedEmail } as SupabaseUser, p)
+        if (!u) throw new Error('โหลดข้อมูลผู้ใช้ไม่สำเร็จ')
+        setUser(u)
+        return u
+      }
+
+      const sb = supabase as NonNullable<typeof supabase>
+      const { data, error } = await sb.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          emailRedirectTo: undefined,
+          data: {
+            display_name: displayName?.trim() || normalizedEmail.split('@')[0],
+          },
+        },
+      })
+      if (error) {
+        const msg = error.message.toLowerCase()
+        if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('user already')) {
+          throw new Error('อีเมลนี้ถูกใช้งานแล้ว')
+        }
+        if (msg.includes('signups not allowed')) {
+          throw new Error('ปิดการสมัครสมาชิกในระบบนี้ กรุณาเปิด "Allow new users to sign up" ใน Supabase Auth')
+        }
+        if (msg.includes('invalid')) {
+          throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+        }
+        throw new Error(error.message)
+      }
+      if (!data.user) throw new Error('สมัครสมาชิกไม่สำเร็จ')
+      // Force set role to user (in case trigger/profile exists with different role)
+      try {
+        await sb.from('profiles').upsert(
+          {
+            id: data.user.id,
+            email: normalizedEmail,
+            display_name: displayName?.trim() || normalizedEmail.split('@')[0],
+            role: 'user',
+          },
+          { onConflict: 'id' }
+        )
+      } catch (e) {
+        console.error('upsert profile failed:', e)
+      }
+      try {
+        await sb.from('profiles').update({ role: 'user' }).eq('id', data.user.id)
+      } catch (e) {
+        console.error('update profile role failed:', e)
+      }
+      const prof = await fetchProfile(sb)
+      const u = toAppUser(data.user, prof)
       if (!u) throw new Error('โหลดข้อมูลผู้ใช้ไม่สำเร็จ')
       setUser(u)
       return u
@@ -165,7 +254,7 @@ const sb = supabase as NonNullable<typeof supabase>
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   )

@@ -38,3 +38,4 @@ worker/.dev.vars
 worker/.wrangler
 
 .vercel
+.env*

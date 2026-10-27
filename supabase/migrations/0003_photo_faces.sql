@@ -40,7 +40,7 @@ create table if not exists public.photo_faces (
   bbox_height   double precision not null default 0,
   det_score     double precision not null default 0,
   quality_score double precision not null default 0,
-  detector      text    not null default 'arcface_r100_buffalo_l',
+  detector      text    not null default 'insightface_buffalo_l_w600k_r50',
   created_at    timestamptz not null default now(),
   unique (photo_id, face_index)
 );

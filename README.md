@@ -20,9 +20,11 @@
 
 | ส่วน | สถานะ | รายละเอียด |
 |------|-------|-----------|
-| 1 · หน้าเว็บ (Frontend) | ✅ เสร็จ | Home, Gallery, Album, Image Viewer, ค้นหาด้วยใบหน้า, Login |
-| 2 · หลังบ้าน + Login + เก็บรูป | ✅ เสร็จ | Supabase Auth / ฐานข้อมูล / RLS / Storage + Dashboard ช่างภาพ |
-| 3 · AI ค้นหาใบหน้า | ✅ เสร็จ | อัปโหลดรูปหน้า → AI ค้นหารูปที่ตรง (ArcFace) |
+| 1 · หน้าเว็บ (Frontend) | ✅ เสร็จ | Home, Gallery, Album, Image Viewer, ค้นหาด้วยใบหน้า, Login + Dashboard ช่างภาพ |
+| 2 · หลังบ้าน + Login + ฐานข้อมูล | ✅ เสร็จ | Supabase Auth / PostgreSQL + pgvector / RLS |
+| 3 · AI ค้นหาใบหน้า | ✅ เสร็จ | FastAPI + InsightFace (ArcFace) — อัปโหลดรูปหน้า → ค้นหาคนที่คล้ายที่สุด |
+| 4 · เก็บรูป | ✅ เสร็จ | Cloudflare R2 (bucket `face-scan-images`) ผ่าน Cloudflare Worker |
+| 5 · Deploy จริง | 🟢 ใช้งาน | Frontend → Vercel · AI → Google Cloud Run · รูป → R2 ผ่าน Worker (ดูหัวข้อ Deploy) |
 
 ---
 
@@ -30,11 +32,13 @@
 
 | ชิ้น | เทคโนโลยี | ใช้ทำอะไร |
 |-----|----------|-----------|
-| หน้าเว็บ | React + TypeScript + Vite + Tailwind CSS | UI ทั้งหมด |
-| ฐานข้อมูล + Login + เก็บรูป | Supabase (PostgreSQL + pgvector + Row Level Security + Storage) | ตารางข้อมูล, ระบบสมาชิก, ความปลอดภัย, เก็บไฟล์รูป |
-| AI ค้นใบหน้า | Python + FastAPI + InsightFace (ArcFace R100) | ตรวจจับใบหน้า + เปลี่ยนใบหน้าเป็นตัวเลข 512 มิติ + ค้นหาคนที่คล้ายที่สุด |
+| หน้าเว็บ | React + TypeScript + Vite + Tailwind CSS | UI ทั้งหมด (deploy ที่ Vercel) |
+| ฐานข้อมูล + Login | Supabase (PostgreSQL + pgvector + Row Level Security + Auth) | ตารางข้อมูล, ระบบสมาชิก, ความปลอดภัย |
+| เก็บไฟล์รูป | Cloudflare R2 (bucket `face-scan-images`) | เก็บรูปต้นฉบับ + thumbnail (ฟรี 10GB/เดือน) |
+| ตัวกลาง (Gateway) | Cloudflare Worker (`https://cs.face-scan-r2.workers.dev`) | อัปโหลด / ลบ / เปิดดูรูปใน R2 อย่างปลอดภัย (ตรวจสิทธิ์ด้วย JWT ของ Supabase) |
+| AI ค้นใบหน้า | Python + FastAPI + InsightFace (Model Pack buffalo_l — โมเดล w600k_r50, ArcFace loss) | ตรวจจับใบหน้า + เปลี่ยนใบหน้าเป็นตัวเลข 512 มิติ + ค้นหาคนที่คล้ายที่สุด (deploy ที่ Google Cloud Run) |
 
-> หมายเหตุ: ตอนนี้เก็บรูปใน Supabase Storage (ฟรี 1GB) มีโค้ดเตรียมรองรับการย้ายไป Cloudflare R2 ไว้แล้ว (ดูหัวข้อ "สิ่งที่วางแผนไว้") แต่ยังไม่ได้ต่อใช้งาน
+> เปิดดูรูป (public view) ผ่าน Worker `/view` — ระบบรองรับหลายตัวเลือกที่เก็บรูปในคราวเดียว: `src/lib/storage/` มีทั้ง **R2 ผ่าน Worker** (ใช้จริงตอนนี้), **Supabase Storage** (สำรอง), และ **mock** (เทสต์ UI แบบไม่ต้องมีบัญชี)
 
 ---
 
@@ -80,9 +84,11 @@ uvicorn app.main:app --reload   # เปิด AI ที่ http://localhost:800
 |-----|----------|
 | `SUPABASE_URL` | URL ของโปรเจกต์ Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | **คีย์ลับ** ใช้ฝั่ง server เท่านั้น อย่าใส่ในเว็บ |
-| `SUPABASE_ANON_KEY` | คีย์สาธารณะ สำหรับโหลดรูปจาก Storage |
+| `SUPABASE_ANON_KEY` | คีย์สาธารณะ สำหรับโหลดรูปจาก Storage (กรณีไม่ใช้ R2) |
 | `FACE_MATCH_MAX_DISTANCE` | ค่าความคล้ายสูงสุดที่ยอมรับ (ยิ่งน้อยยิ่งเคร่ง) ค่าเริ่มต้น 0.6 |
 | `FACE_TOP_K` | จำนวนผลลัพธ์สูงสุดที่คืน ค่าเริ่มต้น 30 |
+| `R2_WORKER_URL` | URL ของ Cloudflare Worker (เช่น `https://cs.face-scan-r2.workers.dev`) — ใช้โหลดรูปจาก R2 และอัปโหลด thumbnail |
+| `R2_THUMB_API_KEY` | คีย์ลับที่ backend ใช้เขียน thumbnail กลับเข้า R2 (ต้องตรงกับ `THUMB_API_KEY` ของ Worker) |
 | `INDEX_API_KEY` | รหัสลับสำหรับเรียก /index (ว่าง = เปิดใน dev) |
 
 ---
@@ -179,20 +185,26 @@ Dashboard → Authentication → Users → Add user → กรอก email + pas
 ```env
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...publishable...
+VITE_WORKER_URL=https://cs.face-scan-r2.workers.dev   # URL ของ Cloudflare Worker (ถ้ามี → ใช้ R2 เก็บรูปทันที)
+VITE_FACE_API_URL=http://localhost:8000               # URL AI backend (ตอน dev ใช้ proxy ของ Vite)
+VITE_FACE_INDEX_API_KEY=                              # ตรงกับ INDEX_API_KEY ฝั่ง backend (ถ้ามี)
 ```
 
 ---
 
 ## หลังอัปโหลดรูปแล้ว (การทำดัชนีใบหน้า)
 
-ปกติพอช่างภาพอัปโหลดรูปเสร็จ หน้าเว็บจะส่งรูปให้ AI สแกนใบหน้าให้อัตโนมัติ (แบบไฟร์แอนด์ฟอร์เก็ต)
-แต่ถ้าต้องการ**สแกนใหม่ทั้งคลัง** หรือมีรูปที่ยังไม่ถูกสแกน ใช้สคริปต์นี้ได้:
+พอช่างภาพอัปโหลดรูปเสร็จ หน้าเว็บจะส่งรูปให้ AI สแกนใบหน้าและสร้าง **thumbnail** ให้อัตโนมัติ (แบบไฟร์แอนด์ฟอร์เก็ต)
+ถ้าขั้นตอนนั้นพลาด (เช่น Cloud Run หลับตัวตอนอัปโหลด) backend มี **background sweeper** ไล่สแกนรูปที่ยังไม่มี thumbnail เองทุก 60 วินาที (ตั้งได้ที่ `INDEX_SWEEP_INTERVAL_SECONDS`)
+
+ถ้าต้องการ**สแกนใหม่ทั้งคลัง** หรือมีรูปที่ยังไม่ถูกสแกน ใช้สคริปต์ได้:
 
 ```powershell
 cd D:\Demo_Projects\Face_Scan\backend
 python -m scripts.reindex_faces              # สแกนทุกอัลบั้ม
 python -m scripts.reindex_faces --album-id <uuid>   # เฉพาะอัลบั้ม
 python -m scripts.reindex_faces --force      # บังคับสแกนใหม่ทั้งหมด
+python -m scripts.backfill_thumbs            # สร้าง thumbnail ที่ขาดหาย (สำรองของ sweeper)
 ```
 
 ---
@@ -206,24 +218,41 @@ python -m scripts.reindex_faces --force      # บังคับสแกนใ
 
 ---
 
-## Build & Deploy
+## Build & Deploy (การขึ้นใช้งานจริง)
 
-### หน้าเว็บ (Frontend)
+ปัจจุบันระบบนี้ deploy เป็น 3 ชิ้น:
+
+### 1. หน้าเว็บ (Frontend) → **Vercel**
 ```powershell
+cd D:\Demo_Projects\Face_Scan
 npm run build       # ได้ไฟล์ใน dist/
 npx tsc -b          # ตรวจ TypeScript
-npm run lint        # ตรวจโค้ด
+npm run lint        # ตรวจโค้ด (oxlint)
 ```
-นำ `dist/` ไปขึ้นบน Vercel / Netlify / Cloudflare Pages (ตั้ง env vars ให้ครบ)
+- โครงการ Vercel ชื่อ **face-scan** (ลิงก์โฟลเดอร์ `D:\Demo_Projects\Face_Scan`)
+- มี `vercel.json` ตั้ง SPA rewrite ให้ทุกเส้นทางไป `/index.html` (ใช้ BrowserRouter — URL สวย ไม่มี #)
+- ไป set env vars ที่ Vercel Dashboard: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_WORKER_URL`, `VITE_FACE_API_URL` (URL ของ Cloud Run จริง)
 
-### ตัว AI (Backend)
-ในโฟลเดอร์ `backend/` มี `Dockerfile` พร้อมแล้ว:
+### 2. AI Backend → **Google Cloud Run** (service `face-scan-api` · region `asia-southeast3`)
 ```powershell
-cd D:\Demo_Projects\Face_Scan\backend
-docker build -t face-scan-ai .
-docker run -p 8000:8000 --env-file .env face-scan-ai
+deploy-cloudrun.bat     # หรือ deploy.bat / deploy2.bat
 ```
-เวลา deploy จริง ต้องตั้ง reverse proxy (เช่น nginx) ให้ส่ง `/api` ไปที่ backend นี้ หรือแก้ `VITE_FACE_API_URL` ให้ชี้ไป URL จริง
+- สเปก: CPU 2 / RAM 4Gi / port 8000 / min 1 instance (กัน Cold Start ตอนสแกน) / max 10
+- โมเดล `FACE_PACK=buffalo_l` + `OMP_NUM_THREADS=2`
+- รันสแกน/ค้นหาใบหน้า ผ่านเซอร์วิสนี้ ส่วนรูปโหลดจาก R2 (`R2_WORKER_URL`) แล้วเขียน thumbnail กลับด้วย `R2_THUMB_API_KEY`
+- มี `cloudbuild.yaml` สำหรับ auto-deploy จาก Git (Cloud Build → Cloud Run) และ `railway.json` + `Dockerfile` รอรับ Railway เป็นทางเลือก
+
+### 3. ที่เก็บรูป → **Cloudflare R2 + Worker** (gateway)
+```powershell
+cd D:\Demo_Projects\Face_Scan\worker
+wrangler login
+wrangler secret put SUPABASE_URL
+wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+wrangler secret put THUMB_API_KEY
+wrangler deploy      # อัปโหลด worker ขึ้น https://cs.face-scan-r2.workers.dev
+```
+- Worker ใช้ R2 binding ชื่อ `BUCKET` (bucket `face-scan-images`) — จุดเชื่อม: `POST /upload`, `DELETE /delete`, `POST /upload-thumb`, `GET /view?path=...`
+- เปิดดูรูปของคนทั่วไปผ่าน `/view` ส่วนอัปโหลด/ลบต้องส่ง JWT ของ Supabase (สิทธิ์มาจาก RLS บนฐานข้อมูล)
 
 ---
 
@@ -233,30 +262,38 @@ docker run -p 8000:8000 --env-file .env face-scan-ai
 Face_Scan/
 ├── src/                        # หน้าเว็บ (React + TypeScript)
 │   ├── lib/                    # ตัวติดต่อ: Supabase, Storage, AI, ประเภทข้อมูล
+│   │   └── storage/            # ตัวเลือกที่เก็บรูป: r2Storage (ใช้จริง) / supabaseStorage / mock
 │   ├── components/             # ส่วนประกอบ UI (Header, Gallery, Dashboard...)
 │   ├── pages/                  # หน้าเว็บ (Home, Gallery, Album, Login, Dashboard*)
 │   └── App.tsx / main.tsx      # จุดเริ่มของเว็บ + เส้นทางหน้า
 ├── backend/                    # ตัว AI (Python + FastAPI)
 │   ├── app/
-│   │   ├── main.py             # จุดเริ่ม AI
+│   │   ├── main.py             # จุดเริ่ม AI + background sweeper (thumbnail)
 │   │   ├── face_engine.py      # ตรวจจับ/แปลงใบหน้าเป็นตัวเลข (InsightFace)
 │   │   ├── routes_faces.py     # API: index / search / health
-│   │   ├── supabase_client.py  # ติดต่อ Supabase (คีย์ลับอยู่ตรงนี้)
-│   │   └── config.py           # ค่าตั้งค่า (threshold, ขนาด, ฯลฯ)
-│   ├── scripts/reindex_faces.py  # สคริปต์สแกนใบหน้าใหม่ทั้งคลัง
+│   │   ├── indexer.py          # ตรรกะสแกนหน้า + สร้าง thumbnail + sweeper
+│   │   ├── image_io.py         # โหลด/ย่อ/เข้ารหัสรูป (thumbnail)
+│   │   ├── supabase_client.py  # ติดต่อ Supabase + ดึงรูป/เขียน thumbnail ไป R2
+│   │   └── config.py           # ค่าตั้งค่า (threshold, R2, ขนาด, ฯลฯ)
+│   ├── scripts/                # reindex_faces.py (สแกนใหม่) + backfill_thumbs.py
 │   ├── tests/                  # เทสต์ identity (ต้องรัน backend จริง)
-│   └── requirements.txt / Dockerfile
+│   └── requirements.txt
+├── worker/                     # Cloudflare Worker ทำหน้าที่เป็นประตูเข้า R2
+│   ├── src/index.js            # /upload, /delete, /upload-thumb, /view
+│   ├── wrangler.toml           # เชื่อม bucket R2 ชื่อ face-scan-images
+│   └── package.json
 ├── supabase/migrations/        # คำสั่งสร้างฐานข้อมูล (รันทีละไฟล์)
-│   ├── 0001_init.sql
-│   └── 0003_photo_faces.sql
-└── src/lib/storage/            # ตัวเลือกที่เก็บรูป (Supabase / mock / R2-สำรอง)
+│   ├── 0001_init.sql           # ตาราง + RLS
+│   ├── 0003_photo_faces.sql    # ตารางหน้า + pgvector + ฟังก์ชันค้นหา
+│   └── 0004_fix_table_grants.sql  # แก้ GRANT/Policy ให้เขียนข้อมูลได้
+├── deploy*.bat                 # สคริปต์ deploy ขึ้น Cloud Run
+├── cloudbuild.yaml             # CI: Build + Push + Deploy ไป Cloud Run
+├── Dockerfile / railway.json   # ทางเลือก deploy AI ผ่าน Railway
+└── vercel.json                 # SPA rewrite สำหรับ Vercel
 ```
 
 ---
 
-## สิ่งที่วางแผนไว้ (Roadmap)
+  ## สิ่งที่วางแผนไว้ (Roadmap)
 
-- **คัดกรองภาพคุณภาพต่ำตอนอัปโหลด** — ภาพเบลอ / หลับตา / ถูกบัง จะถูกแจ้งสาเหตุและไม่ถูกอัปโหลด (เหมาะกับช่างภาพที่ถ่ายรัว)
-- **การประเมินผลความแม่นยำ** — คำนวณ Precision@k / Recall@k จากชุดข้อมูลจริง เพื่อหาค่า threshold ที่ดีที่สุด
-- **Pagination + thumbnail จริง** — โหลดเว็บเร็วขึ้นเมื่อมีรูปเยอะ
-- **ย้ายรูปไป Cloudflare R2** — มีโค้ดรองรับใน `src/lib/storage/r2Storage.ts` แล้ว ยังไม่ได้เชื่อมต่อ
+  > ปัจจุบันใช้อยู่แล้ว: **Cloudflare R2** ผ่าน Worker (เก็บรูปจริงเป็นหลัก) · **thumbnail** อัตโนมัติ (sweeper + backfill) · migration 0004 แก้ GRANT/RLS · deploy สามชั้น Vercel + Cloud Run + R2 Worker

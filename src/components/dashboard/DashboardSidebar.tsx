@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   LogOut,
   Settings,
+  Trash2,
   User,
   X,
 } from 'lucide-react'
@@ -12,6 +13,7 @@ import { useAuth } from '../../auth'
 const navItems = [
   { to: '/dashboard', label: 'ภาพรวม', icon: LayoutDashboard, end: true },
   { to: '/dashboard/albums', label: 'อัลบั้ม', icon: Images, end: false },
+  { to: '/dashboard/requests', label: 'คำขอลบรูป', icon: Trash2, end: false },
   { to: '/dashboard/account', label: 'บัญชี', icon: Settings, end: false },
 ]
 

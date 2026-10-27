@@ -3,6 +3,22 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Loader2, X } from 'lucide-react'
 import type { AlbumCategory } from '../../lib/types'
 
+/** Today as a local `YYYY-MM-DD` string (default when creating a new album). */
+function todayLocal(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Normalize a date value to a Gregorian `YYYY-MM-DD` (a year >= 2400 is treated as พ.ศ.). */
+function normalizeYmd(value: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!m) return ''
+  let year = Number(m[1])
+  if (year >= 2400) year -= 543
+  if (year < 1900 || year > 2200) return ''
+  return `${String(year).padStart(4, '0')}-${m[2]}-${m[3]}`
+}
+
 export interface AlbumFormValues {
   name: string
   description: string
@@ -38,7 +54,7 @@ export default function AlbumFormDialog({
 }: AlbumFormDialogProps) {
   const [name, setName] = useState(initial?.name ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
-  const [eventDate, setEventDate] = useState(initial?.event_date ?? '')
+  const [eventDate, setEventDate] = useState('')
   const [location, setLocation] = useState(initial?.location ?? '')
   const [category, setCategory] = useState<AlbumCategory | ''>(
     (initial?.category as AlbumCategory | '') ?? '',
@@ -49,17 +65,17 @@ export default function AlbumFormDialog({
     if (!open) return
     setName(initial?.name ?? '')
     setDescription(initial?.description ?? '')
-    setEventDate(initial?.event_date ?? '')
+    setEventDate(initial?.event_date || (mode === 'create' ? todayLocal() : ''))
     setLocation(initial?.location ?? '')
     setCategory((initial?.category as AlbumCategory | '') ?? '')
-  }, [open, initial])
+  }, [open, initial, mode])
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
     onSubmit({
       name: name.trim(),
       description: description.trim(),
-      event_date: eventDate || '',
+      event_date: normalizeYmd(eventDate),
       location: location.trim(),
       category,
     })
@@ -129,8 +145,6 @@ export default function AlbumFormDialog({
                       type="date"
                       value={eventDate}
                       onChange={(e) => setEventDate(e.target.value)}
-                      min="1900-01-01"
-                      max="2099-12-31"
                       className="input"
                     />
                   </Field>

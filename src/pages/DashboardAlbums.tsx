@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   Calendar,
   Images,
@@ -8,6 +9,7 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Search,
   Trash2,
 } from 'lucide-react'
 import { useAuth } from '../auth'
@@ -21,6 +23,7 @@ import {
 } from '../lib/albumService'
 import { storage } from '../lib/storage'
 import { PageFade } from '../components/motion'
+import { formatDateThai } from '../lib/date'
 import AlbumFormDialog, {
   type AlbumFormValues,
 } from '../components/dashboard/AlbumFormDialog'
@@ -40,7 +43,14 @@ export default function DashboardAlbums() {
   const [albums, setAlbums] = useState<AlbumWithMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [toast, setToast] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+
+  // Portal target for the fixed toolbar bar (mounted in DashboardLayout).
+  const [toolbarEl, setToolbarEl] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    const el = document.getElementById('dashboard-page-toolbar')
+    if (el) setToolbarEl(el)
+  }, [])
 
   // dialog state
   const [formOpen, setFormOpen] = useState(false)
@@ -102,10 +112,8 @@ export default function DashboardAlbums() {
     try {
       if (formMode === 'create') {
         await createAlbum(user.id, input)
-        setToast('สร้างอัลบั้มแล้ว')
       } else if (editing) {
         await updateAlbum(editing.id, input)
-        setToast('บันทึกแล้ว')
       }
       setFormOpen(false)
       await reload()
@@ -125,7 +133,6 @@ export default function DashboardAlbums() {
         // Will be a no-op in mock; real R2 delete plugged in during Phase 6/8.
         await storage.deletePhoto(photo.storage_path, photo.thumbnail_path)
       })
-      setToast('ลบอัลบั้มแล้ว')
       setDeleteTarget(null)
       await reload()
     } catch (err) {
@@ -135,22 +142,56 @@ export default function DashboardAlbums() {
     }
   }
 
-  return (
-    <PageFade>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">อัลบั้มทั้งหมด</h2>
-        </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
-        >
-          <Plus size={18} />
-          สร้างอัลบั้ม
-        </button>
-      </div>
+  const q = query.trim().toLowerCase()
+  const filteredAlbums = albums.filter(
+    (a) =>
+      !q ||
+      a.name.toLowerCase().includes(q) ||
+      (a.description ?? '').toLowerCase().includes(q) ||
+      (a.location ?? '').toLowerCase().includes(q),
+  )
 
+  return (
+    <>
+      {toolbarEl &&
+        createPortal(
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">อัลบั้มทั้งหมด</h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {albums.length > 0 && (
+                <div className="relative w-full max-w-xs sm:w-auto">
+                  <Search
+                    size={17}
+                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="ค้นหาอัลบั้ม…"
+                    className="input w-full rounded-xl py-2"
+                    style={{ paddingLeft: 44 }}
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={openCreate}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+              >
+                <Plus size={18} />
+                สร้างอัลบั้ม
+              </button>
+            </div>
+          </div>
+        </>,
+        toolbarEl,
+      )}
+
+      <PageFade>
       {error && (
         <p className="mt-4 rounded-xl bg-red-50 px-4 py-2.5 text-sm font-medium text-red-600 ring-1 ring-red-200">
           {error}
@@ -175,9 +216,16 @@ export default function DashboardAlbums() {
             สร้างอัลบั้มแรก
           </button>
         </div>
+      ) : filteredAlbums.length === 0 ? (
+        <div className="mt-8 rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center">
+          <Search size={36} className="mx-auto text-slate-300" />
+          <p className="mt-3 text-slate-500">
+            ไม่พบอัลบั้มที่ค้นหา{query.trim() ? ` "${query.trim()}"` : ''}
+          </p>
+        </div>
       ) : (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {albums.map((album, i) => (
+          {filteredAlbums.map((album, i) => (
             <motion.div
               key={album.id}
               layout
@@ -227,7 +275,7 @@ export default function DashboardAlbums() {
                   {album.event_date && (
                     <span className="inline-flex items-center gap-1">
                       <Calendar size={12} />
-                      {album.event_date}
+                      {formatDateThai(album.event_date)}
                     </span>
                   )}
                   {album.location && (
@@ -292,21 +340,7 @@ export default function DashboardAlbums() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-
-      {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.25, ease }}
-            className="fixed bottom-6 left-1/2 z-[80] -translate-x-1/2 rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-xl"
-          >
-            {toast}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </PageFade>
+      </PageFade>
+    </>
   )
 }

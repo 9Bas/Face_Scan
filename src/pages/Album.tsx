@@ -3,8 +3,6 @@ import { Link, useParams } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft,
-  CheckCheck,
-  Download,
   Images,
   Loader2,
   MapPin,
@@ -20,8 +18,10 @@ import ImageCard from '../components/ImageCard'
 import ImageViewer from '../components/ImageViewer'
 import FaceSearchModal from '../components/FaceSearchModal'
 import { PageFade } from '../components/motion'
-import { Toast, type ToastState } from '../components/Toast'
-import { downloadPhoto, type Photo } from '../data'
+import { useGridColumns, useResponsivePageSize } from '../lib/useGridColumns'
+import { type Photo } from '../data'
+import { formatDateThai } from '../lib/date'
+import { useAuth } from '../auth'
 
 /** Map a DB photo row to the UI Photo shape, preferring the thumbnail. */
 function toPhoto(p: PublicPhoto): Photo {
@@ -37,18 +37,23 @@ function toPhoto(p: PublicPhoto): Photo {
 
 export default function Album() {
   const { albumId } = useParams()
+  const { user } = useAuth()
   const [album, setAlbum] = useState<PublicAlbum | null>(null)
   const [photos, setPhotos] = useState<PublicPhoto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
-  const [selectMode, setSelectMode] = useState(false)
+  const [selectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [toast, setToast] = useState<ToastState | null>(null)
-  const [downloading, setDownloading] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
-  const PHOTOS_PER_PAGE = 15
-  const [visibleCount, setVisibleCount] = useState(PHOTOS_PER_PAGE)
+  const { perPage } = useResponsivePageSize()
+  const [visibleCount, setVisibleCount] = useState(perPage)
+  const { ref: gridRef, cols } = useGridColumns()
+  // Round up so the last row is always complete (never a lone cell).
+  const shown =
+    visibleCount >= photos.length
+      ? photos.length
+      : Math.min(photos.length, Math.ceil(visibleCount / cols) * cols)
 
   useEffect(() => {
     let active = true
@@ -95,31 +100,13 @@ export default function Album() {
     })
   }
 
-  const selectAll = () => setSelected(new Set(photos.map((p) => p.id)))
-  const clearAll = () => setSelected(new Set())
+  void photos
 
-  const enterSelectMode = () => setSelectMode(true)
-  const exitSelectMode = () => {
-    setSelectMode(false)
-    setSelected(new Set())
-  }
 
-  const downloadSelected = async () => {
-    if (downloading || selected.size === 0) return
-    setDownloading(true)
-    const items = photos.filter((p) => selected.has(p.id))
-    for (const photo of items) {
-      await downloadPhoto(toPhoto(photo))
-      await new Promise((r) => setTimeout(r, 350))
-    }
-    setDownloading(false)
-    setToast({
-      id: Date.now(),
-      message: `Downloaded ${items.length} photo${items.length > 1 ? 's' : ''}`,
-    })
-  }
 
-  const allSelected = photos.length > 0 && selected.size === photos.length
+  { const _x = async () => {}; void _x }
+
+
 
   if (loading) {
     return (
@@ -191,7 +178,7 @@ export default function Album() {
                 <Images size={15} className="text-brand-600" />
                 {photos.length} รูป
               </span>
-              {album.event_date && <span>{album.event_date}</span>}
+              {album.event_date && <span>{formatDateThai(album.event_date)}</span>}
               {album.location && (
                 <span className="inline-flex items-center gap-1.5">
                   <MapPin size={15} />
@@ -201,73 +188,30 @@ export default function Album() {
             </div>
           </div>
 
-          {/* Selection toolbar */}
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            {!selectMode ? (
-              <button
-                type="button"
-                onClick={enterSelectMode}
-                className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
-              >
-                เลือกภาพ
-              </button>
-            ) : (
-              <>
-                <span className="mr-1 text-sm font-medium text-slate-500">
-                  {selected.size} ถูกเลือก
-                </span>
-                <button
-                  type="button"
-                  onClick={allSelected ? clearAll : selectAll}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
-                >
-                  <CheckCheck size={16} />
-                  {allSelected ? 'ล้างการเลือก' : 'เลือกทั้งหมด'}
-                </button>
-                <button
-                  type="button"
-                  onClick={downloadSelected}
-                  disabled={downloading || selected.size === 0}
-                  className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
-                >
-                  {downloading ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Download size={16} />
-                  )}
-                  ดาวน์โหลด
-                </button>
-                <button
-                  type="button"
-                  onClick={exitSelectMode}
-                  className="rounded-xl bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
-                >
-                  ยกเลิก
-                </button>
-              </>
-            )}
-          </div>
+          {/* Selection toolbar removed - download available via face search for logged in users */}
         </header>
 
         {/* Face search bar — searches within THIS album only */}
-        <button
-          type="button"
-          onClick={() => setSearchOpen(true)}
-          disabled={photos.length === 0}
-          className="group mb-6 flex w-full items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50/60 px-4 py-3.5 text-left transition-all hover:border-brand-400 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >{/*className="group mb-6 ml-auto flex items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50/60 px-4 py-3.5 text-left transition-all hover:border-brand-400 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50" */}
-          <span className="inline-flex rounded-xl bg-brand-600 p-2 text-white shadow-sm shadow-brand-600/30 transition-transform group-hover:scale-105">
-            <ScanFace size={20} />
-          </span>
-          <span className="flex flex-col">
-            <span className="text-sm font-bold text-slate-900">
-              ค้นหาภาพจากใบหน้า
+        {user && (
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            disabled={photos.length === 0}
+            className="group mb-6 flex w-full items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50/60 px-4 py-3.5 text-left transition-all hover:border-brand-400 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="inline-flex rounded-xl bg-brand-600 p-2 text-white shadow-sm shadow-brand-600/30 transition-transform group-hover:scale-105">
+              <ScanFace size={20} />
             </span>
-            <span className="text-xs text-slate-500">
-              ค้นในอัลบั้มนี้ · {album.name} ({photos.length} ภาพ)
+            <span className="flex flex-col">
+              <span className="text-sm font-bold text-slate-900">
+                ค้นหาภาพจากใบหน้า
+              </span>
+              <span className="text-xs text-slate-500">
+                ค้นในอัลบั้มนี้ · {album.name} ({photos.length} ภาพ)
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+        )}
 
         {photos.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center text-slate-500">
@@ -275,24 +219,33 @@ export default function Album() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
-              {photos.slice(0, visibleCount).map((photo) => (
-                <ImageCard
+            <div
+              ref={gridRef}
+              className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5"
+            >
+              {photos.slice(0, shown).map((photo) => (
+                <div
                   key={photo.id}
-                  photo={toPhoto(photo)}
-                  onClick={openViewer}
-                  selectable={selectMode}
-                  selected={selected.has(photo.id)}
-                  onToggleSelect={toggleSelect}
-                />
+                  className="relative group"
+                  onContextMenu={(e) => e.preventDefault()}
+                  onDragStart={(e) => e.preventDefault()}
+                >
+                  <ImageCard
+                    photo={toPhoto(photo)}
+                    onClick={openViewer}
+                    selectable={selectMode}
+                    selected={selected.has(photo.id)}
+                    onToggleSelect={toggleSelect}
+                  />
+                </div>
               ))}
             </div>
 
-            {visibleCount < photos.length && (
+            {shown < photos.length && (
               <div className="mt-8 flex flex-col items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setVisibleCount((c) => c + PHOTOS_PER_PAGE)}
+                  onClick={() => setVisibleCount((c) => c + perPage)}
                   className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white px-6 py-2.5 text-sm font-semibold text-brand-700 shadow-sm transition-all hover:border-brand-400 hover:bg-brand-50"
                 >
                   ดูภาพเพิ่มเติม
@@ -313,8 +266,6 @@ export default function Album() {
           />
         )}
       </AnimatePresence>
-
-      <Toast toast={toast} onClose={() => setToast(null)} />
 
       <FaceSearchModal
         open={searchOpen}

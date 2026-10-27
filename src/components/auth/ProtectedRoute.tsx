@@ -3,8 +3,8 @@ import { useAuth } from '../../auth'
 import { Loader2 } from 'lucide-react'
 
 /**
- * Wraps a photographer-only route. Redirects to /login when signed out,
- * shows a small spinner while the session is resolving.
+ * Wraps a photographer/admin route. Regular users cannot access dashboard.
+ * Redirects to /login when signed out.
  */
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -20,6 +20,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  }
+
+  if (user.role === 'user') {
+    return <Navigate to="/" replace />
   }
 
   return <>{children}</>

@@ -156,19 +156,28 @@ export async function indexPhoto(photoId: string): Promise<void> {
   }
 }
 
-const INDEX_DELAY_MS = 800
+const INDEX_CONCURRENCY = 4
 
 /**
- * Index multiple photos sequentially with a delay between each request
- * to avoid hitting Cloud Run rate limits (429).
+ * Index multiple photos with bounded concurrency so thumbnails + face
+ * embeddings land quickly after a batch upload. Each indexPhoto() already
+ * retries once on 429, so no forced delay is needed between requests.
  */
-export async function indexPhotosSequentially(
+export async function indexPhotos(
   photoIds: string[],
+  concurrency = INDEX_CONCURRENCY,
 ): Promise<void> {
-  for (let i = 0; i < photoIds.length; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, INDEX_DELAY_MS))
-    await indexPhoto(photoIds[i])
-  }
+  const queue = [...photoIds]
+  const workers = Math.max(1, Math.min(concurrency, queue.length))
+  await Promise.all(
+    Array.from({ length: workers }, async () => {
+      while (queue.length > 0) {
+        const id = queue.shift()
+        if (!id) break
+        await indexPhoto(id)
+      }
+    }),
+  )
 }
 
 function translateError(detail: unknown, status: number): string {

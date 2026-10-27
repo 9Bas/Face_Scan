@@ -1,4 +1,5 @@
-import { Check } from 'lucide-react'
+import { Check, Image as ImageIcon } from 'lucide-react'
+import { useState } from 'react'
 import type { Photo } from '../data'
 
 interface ImageCardProps {
@@ -16,8 +17,12 @@ export default function ImageCard({
   selected = false,
   onToggleSelect,
 }: ImageCardProps) {
-  // Always fall back to the full URL when thumb is missing/empty.
-  const src = photo.thumb || photo.url
+  const [failed, setFailed] = useState(false)
+  // Thumbnails are the only thing the grid should download. When the server
+  // hasn't generated one yet (photo.thumb falls back to the full-size URL) or
+  // loading failed, show a lightweight placeholder instead of fetching the
+  // multi-MB original — that was the cause of the slow, laggy album grid.
+  const hasThumb = photo.thumb && photo.thumb !== photo.url && !failed
   const alt = photo.title || 'photo'
 
   return (
@@ -31,20 +36,32 @@ export default function ImageCard({
         className="absolute inset-0 h-full w-full cursor-zoom-in"
         aria-label={`Open ${alt}`}
       >
-        <img
-          src={src}
-          alt={alt}
-          loading="lazy"
-          decoding="async"
-          className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-          onError={(e) => {
-            // If thumb fails, swap to full URL as a last resort.
-            const el = e.currentTarget
-            if (el.src !== photo.url) el.src = photo.url
-          }}
-        />
+        {hasThumb ? (
+          <img
+            src={photo.thumb}
+            alt={alt}
+            loading="lazy"
+            decoding="async"
+            onError={() => setFailed(true)}
+            onContextMenu={(e) => e.preventDefault()}
+            onDragStart={(e) => e.preventDefault()}
+            draggable={false}
+            className="pointer-events-none h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 select-none"
+            style={{ WebkitTouchCallout: 'none' }}
+          />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-300">
+            <ImageIcon size={26} />
+          </span>
+        )}
         <span className="pointer-events-none absolute inset-0 bg-slate-900/0 transition-colors duration-200 group-hover:bg-slate-900/10" />
       </button>
+      <div
+        className="absolute inset-0"
+        onContextMenu={(e) => e.preventDefault()}
+        onClick={() => onClick(photo)}
+        aria-hidden="true"
+      />
 
       {selectable && (
         <button

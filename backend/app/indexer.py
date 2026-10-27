@@ -83,7 +83,9 @@ def index_photo_by_id(photo_id: str, skip_thumbnail: bool = False) -> dict[str, 
     url = sbc.storage_public_url(photo["storage_path"])
     image_rgb = image_io.load_image_from_url(url)
 
-    if not skip_thumbnail:
+    # Thumbnail is generated client-side during upload and only backfilled here
+    # when it's still missing (e.g. older photos or a failed client thumb).
+    if not skip_thumbnail and not photo.get("thumbnail_path"):
         index_thumbnail(photo, image_rgb)
 
     faces = face_engine.detect_faces(image_rgb)

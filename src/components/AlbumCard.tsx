@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Images, MapPin } from 'lucide-react'
 import type { PublicAlbum } from '../lib/galleryService'
 import { photoViewUrl } from '../lib/galleryService'
+import { formatDateThai } from '../lib/date'
 
 export default function AlbumCard({ album }: { album: PublicAlbum }) {
   const count = album.photo_count
@@ -39,7 +40,7 @@ export default function AlbumCard({ album }: { album: PublicAlbum }) {
           </p>
         )}
         <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 text-xs text-slate-400">
-          {album.event_date && <span>{album.event_date}</span>}
+          {album.event_date && <span>{formatDateThai(album.event_date)}</span>}
           {album.location && (
             <span className="inline-flex items-center gap-1">
               <MapPin size={12} />

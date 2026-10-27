@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard'
 import DashboardAlbums from './pages/DashboardAlbums'
 import DashboardAlbumDetail from './pages/DashboardAlbumDetail'
 import DashboardAccount from './pages/DashboardAccount'
+import DashboardRequests from './pages/DashboardRequests'
 
 export default function App() {
   const location = useLocation()
@@ -32,6 +33,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="albums" element={<DashboardAlbums />} />
             <Route path="albums/:albumId" element={<DashboardAlbumDetail />} />
+            <Route path="requests" element={<DashboardRequests />} />
             <Route path="account" element={<DashboardAccount />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>

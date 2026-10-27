@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { LayoutDashboard, LogIn, LogOut, X } from 'lucide-react'
+import { LayoutDashboard, LogIn, LogOut, UserPlus, X } from 'lucide-react'
 import { useAuth } from '../auth'
 
 interface MenuProps {
@@ -62,15 +62,20 @@ export default function Menu({ open, onClose }: MenuProps) {
                     {user.displayName ?? user.email}
                   </p>
                   <p className="truncate text-xs text-brand-600">{user.email}</p>
+                  <p className="mt-1 text-[11px] font-medium text-brand-700">
+                    {user.role === 'admin' ? 'ผู้ดูแลระบบ' : user.role === 'photographer' ? 'ช่างภาพ' : 'สมาชิก'}
+                  </p>
                 </div>
-                <Link
-                  to="/dashboard"
-                  onClick={onClose}
-                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-base font-semibold text-slate-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
-                >
-                  <LayoutDashboard size={20} className="text-brand-600" />
-                  แดชบอร์ด
-                </Link>
+                {user.role !== 'user' && (
+                  <Link
+                    to="/dashboard"
+                    onClick={onClose}
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-base font-semibold text-slate-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                  >
+                    <LayoutDashboard size={20} className="text-brand-600" />
+                    แดชบอร์ด
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -81,14 +86,25 @@ export default function Menu({ open, onClose }: MenuProps) {
                 </button>
               </div>
             ) : (
-              <Link
-                to="/login"
-                onClick={onClose}
-                className="flex items-center gap-3 rounded-xl px-3 py-3 text-base font-semibold text-slate-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
-              >
-                <LogIn size={20} className="text-brand-600" />
-                เข้าสู่ระบบช่างภาพ
-              </Link>
+              <div className="space-y-1">
+                <Link
+                  to="/login"
+                  onClick={onClose}
+                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-base font-semibold text-slate-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                >
+                  <LogIn size={20} className="text-brand-600" />
+                  เข้าสู่ระบบ
+                </Link>
+                <Link
+                  to="/login"
+                  state={{ register: true }}
+                  onClick={onClose}
+                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-base font-semibold text-slate-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                >
+                  <UserPlus size={20} className="text-brand-600" />
+                  สมัครสมาชิก
+                </Link>
+              </div>
             )}
           </div>
         </div>

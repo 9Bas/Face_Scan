@@ -17,6 +17,6 @@ export interface IStorage {
   kind: 'mock' | 'r2'
   getViewUrl(storagePath: string): string
   getThumbUrl(thumbnailPath: string | null): string | null
-  uploadPhoto(file: File, albumId: string): Promise<UploadResult>
+  uploadPhoto(file: File, albumId: string, signal?: AbortSignal): Promise<UploadResult>
   deletePhoto(storagePath: string, thumbnailPath: string | null): Promise<void>
 }

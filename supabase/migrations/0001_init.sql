@@ -16,8 +16,8 @@ create table if not exists public.profiles (
   id           uuid primary key references auth.users(id) on delete cascade,
   email        text,
   display_name text,
-  role         text not null default 'photographer'
-               check (role in ('photographer','admin')),
+  role         text not null default 'user'
+               check (role in ('photographer','admin','user')),
   created_at   timestamptz not null default now()
 );
 
@@ -44,8 +44,13 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email, display_name)
-  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'display_name',''))
+  insert into public.profiles (id, email, display_name, role)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'display_name',''),
+    'user'
+  )
   on conflict (id) do nothing;
   return new;
 end;

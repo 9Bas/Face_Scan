@@ -15,7 +15,8 @@ function cors() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Headers':
+      'Authorization, Content-Type, X-API-Key, X-Album-Id, X-Filename, X-Storage-Path',
   }
 }
 
@@ -57,18 +58,42 @@ async function handleUpload(env, req) {
   }
   const safe = String(file.name).replace(/[^\w.-]/g, '_')
   const storagePath = `albums/${albumId}/original/${Date.now()}-${Math.round(Math.random() * 1e6)}-${safe}`
-  const buf = await file.arrayBuffer()
+  // Stream the multipart part into R2. Avoids materializing the whole image
+  // in memory via arrayBuffer(), which costs CPU (free plan: 10ms/request)
+  // and RAM — the #1 cause of 503s on bulk uploads.
   try {
-    await env.BUCKET.put(storagePath, buf, {
+    await env.BUCKET.put(storagePath, file.stream(), {
       httpMetadata: { contentType: file.type || 'image/jpeg' },
     })
   } catch (e) {
     throw new Error('R2 upload failed: ' + (e?.name || 'unknown') + ' ' + (e?.message || ''))
   }
+
+  // Optional client-generated thumbnail uploaded in the same request. When
+  // present, derive the /thumbs/ path (same layout the AI backend uses), so
+  // the grid renders instantly instead of waiting on async thumbnail gen.
+  let thumbnailPath = null
+  const thumb = form.get('thumb')
+  if (thumb && typeof thumb !== 'string') {
+    const thumbPath = storagePath.replace('/original/', '/thumbs/')
+    try {
+      await env.BUCKET.put(thumbPath, thumb.stream(), {
+        httpMetadata: {
+          contentType: thumb.type || 'image/jpeg',
+          cacheControl: 'public, max-age=31536000, immutable',
+        },
+      })
+      thumbnailPath = thumbPath
+    } catch (e) {
+      // Non-fatal: original still uploaded; backend sweeper can backfill later.
+      console.error('thumb upload failed: ' + (e?.message || 'unknown'))
+    }
+  }
+
   return json(200, {
     storagePath,
-    thumbnailPath: null,
-    fileSize: buf.byteLength,
+    thumbnailPath,
+    fileSize: file.size || null,
     mimeType: file.type || 'image/jpeg',
   })
 }
@@ -84,11 +109,10 @@ async function handleUploadThumb(env, req) {
   if (!storagePath || !file || typeof file === 'string') {
     return json(400, { error: 'storagePath and file required' })
   }
-  const buf = await file.arrayBuffer()
-  await env.BUCKET.put(storagePath, buf, {
+  await env.BUCKET.put(storagePath, file.stream(), {
     httpMetadata: { contentType: file.type || 'image/jpeg' },
   })
-  return json(200, { storagePath, fileSize: buf.byteLength })
+  return json(200, { storagePath, fileSize: file.size || null })
 }
 
 async function handleDelete(env, req) {

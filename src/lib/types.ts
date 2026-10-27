@@ -2,7 +2,7 @@
  * Database row types — mirror of `supabase/migrations/0001_init.sql`.
  * Keep these in sync with the SQL migration when columns change.
  */
-export type Role = 'photographer' | 'admin'
+export type Role = 'photographer' | 'admin' | 'user'
 
 export interface Profile {
   id: string
@@ -50,4 +50,24 @@ export interface AlbumDTO extends AlbumRow {
 export interface PhotoDTO extends PhotoRow {
   url: string
   thumb_url: string | null
+}
+
+export type DeletionRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface PhotoDeletionRequestRow {
+  id: string
+  photo_id: string
+  requester_id: string
+  requester_email: string | null
+  reason: string | null
+  status: DeletionRequestStatus
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PhotoDeletionRequestDTO extends PhotoDeletionRequestRow {
+  photo?: PhotoDTO | null
+  album_id?: string | null
 }
