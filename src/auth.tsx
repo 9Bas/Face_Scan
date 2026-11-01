@@ -14,6 +14,14 @@ export interface AppUser {
   email: string
   displayName: string | null
   role: Profile['role']
+  /** Storage path of the profile photo (null when not set yet). */
+  avatarPath: string | null
+  /**
+   * Whether a profile face is enrolled. `null` means "unknown" — e.g. the
+   * 0009 migration hasn't been applied yet — so the UI can avoid locking
+   * people out of the site.
+   */
+  faceEnrolled: boolean | null
 }
 
 interface AuthContextValue {
@@ -22,6 +30,8 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<AppUser>
   signUp: (email: string, password: string, displayName?: string) => Promise<AppUser>
   signOut: () => Promise<void>
+  /** Re-read the profile + enrollment flag (after changing the profile photo). */
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -34,36 +44,91 @@ async function mockLoadProfile(uid: string): Promise<Profile> {
     email: 'photographer@psru.ac.th',
     display_name: 'PSRU Photographer (demo)',
     role: 'photographer',
+    avatar_path: null,
     created_at: new Date().toISOString(),
   }
 }
 
-/**
- * Fetch the caller's profile via the RPC `get_my_profile()` (security definer).
- * Avoids RLS 403s when a policy isn't applied as expected. Auto-creates a
- * profile row when missing.
- */
-async function fetchProfile(sb: NonNullable<typeof supabase>): Promise<Profile | null> {
-  const { data, error } = await sb.rpc('get_my_profile')
-  if (error) {
-    // Fallback to direct select — works if RLS policy eventually allows it.
-    const { data: row, error: err2 } = await sb
-      .from('profiles')
-      .select('*')
-      .maybeSingle()
-    if (err2) throw err2
-    return row as Profile | null
-  }
-  return data as Profile | null
+interface ProfileBundle {
+  profile: Profile | null
+  faceEnrolled: boolean | null
 }
 
-function toAppUser(user: SupabaseUser, profile: Profile | null): AppUser | null {
+/**
+ * Load the caller's profile + profile-face enrollment state.
+ *
+ * The profile is read via the RPC `get_my_profile()` (security definer, which
+ * also auto-creates the row when missing). `avatar_path` and `has_profile_face`
+ * come from migration 0009; if that migration hasn't been applied yet we fall
+ * back gracefully instead of blocking the app.
+ */
+async function loadProfile(
+  sb: NonNullable<typeof supabase>,
+  uid: string,
+): Promise<ProfileBundle> {
+  let profile: Profile | null = null
+
+  if (uid) {
+    const { data: rpcRow, error: rpcErr } = await sb.rpc('get_my_profile')
+    if (!rpcErr) profile = (rpcRow as Profile | null) ?? null
+  }
+
+  if (!profile) {
+    // Fallback to a direct select — works when RLS allows it.
+    const { data: row, error } = await sb
+      .from('profiles')
+      .select('id,email,display_name,role,created_at,avatar_path')
+      .eq('id', uid)
+      .maybeSingle()
+    if (error) {
+      const { data: basic, error: err2 } = await sb
+        .from('profiles')
+        .select('id,email,display_name,role,created_at')
+        .eq('id', uid)
+        .maybeSingle()
+      if (err2) throw err2
+      profile = basic as Profile | null
+    } else {
+      profile = row as Profile | null
+    }
+  }
+
+  // avatar_path may be missing from the get_my_profile() result set — read it
+  // directly (tolerate the column not existing yet).
+  let avatarPath = profile?.avatar_path ?? null
+  if (profile) {
+    const { data: extra, error: extraErr } = await sb
+      .from('profiles')
+      .select('avatar_path')
+      .eq('id', uid)
+      .maybeSingle()
+    if (!extraErr && extra) {
+      avatarPath = (extra as { avatar_path: string | null }).avatar_path ?? null
+    }
+    profile = { ...profile, avatar_path: avatarPath }
+  }
+
+  // null = RPC missing (migration not applied) → don't enforce the gate.
+  let faceEnrolled: boolean | null = null
+  const { data: flag, error: flagErr } = await sb.rpc('has_profile_face')
+  if (!flagErr) faceEnrolled = Boolean(flag)
+
+  return { profile, faceEnrolled }
+}
+
+function toAppUser(
+  user: SupabaseUser,
+  profile: Profile | null,
+  faceEnrolled: boolean | null = null,
+): AppUser | null {
   if (!profile) return null
   return {
     id: user.id,
     email: user.email ?? profile.email ?? '',
     displayName: profile.display_name,
     role: profile.role,
+    avatarPath: profile.avatar_path ?? null,
+    faceEnrolled,
   }
 }
 
@@ -97,8 +162,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data } = await sb.auth.getSession()
       if (data.session?.user) {
         try {
-          const prof = await fetchProfile(sb)
-          if (active) setUser(toAppUser(data.session.user, prof))
+          const bundle = await loadProfile(sb, data.session.user.id)
+          if (active) {
+            setUser(toAppUser(data.session.user, bundle.profile, bundle.faceEnrolled))
+          }
         } catch {
           if (active) setUser(null)
         }
@@ -111,8 +178,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
         try {
-          const prof = await fetchProfile(sb)
-          setUser(toAppUser(sess.user, prof))
+          const bundle = await loadProfile(sb, sess.user.id)
+          setUser(toAppUser(sess.user, bundle.profile, bundle.faceEnrolled))
         } catch {
           setUser(null)
         }
@@ -152,8 +219,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const normalizedEmail = email.trim().toLowerCase()
       const { data, error } = await sb.auth.signInWithPassword({ email: normalizedEmail, password })
       if (error) throw new Error('ข้อมูลการเข้าสู่ระบบไม่ถูกต้อง')
-      const prof = await fetchProfile(sb)
-      const u = toAppUser(data.session!.user, prof)
+      const bundle = await loadProfile(sb, data.session!.user.id)
+      const u = toAppUser(data.session!.user, bundle.profile, bundle.faceEnrolled)
       if (!u) throw new Error('โหลดข้อมูลผู้ใช้ไม่สำเร็จ')
       setUser(u)
       return u
@@ -213,27 +280,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(error.message)
       }
       if (!data.user) throw new Error('สมัครสมาชิกไม่สำเร็จ')
-      // Force set role to user (in case trigger/profile exists with different role)
+      // The DB trigger `handle_new_user()` creates the profile with role 'user'
+      // (and a guard trigger blocks clients from changing roles). We only sync
+      // the display name — an upsert would need an INSERT policy (there isn't
+      // one), so update the row the trigger already created instead.
       try {
-        await sb.from('profiles').upsert(
-          {
-            id: data.user.id,
+        const { error: syncErr } = await sb
+          .from('profiles')
+          .update({
             email: normalizedEmail,
             display_name: displayName?.trim() || normalizedEmail.split('@')[0],
-            role: 'user',
-          },
-          { onConflict: 'id' }
-        )
+          })
+          .eq('id', data.user.id)
+        if (syncErr) console.error('sync profile failed:', syncErr.message)
       } catch (e) {
-        console.error('upsert profile failed:', e)
+        console.error('sync profile failed:', e)
       }
-      try {
-        await sb.from('profiles').update({ role: 'user' }).eq('id', data.user.id)
-      } catch (e) {
-        console.error('update profile role failed:', e)
-      }
-      const prof = await fetchProfile(sb)
-      const u = toAppUser(data.user, prof)
+      const bundle = await loadProfile(sb, data.user.id)
+      const u = toAppUser(data.user, bundle.profile, bundle.faceEnrolled)
       if (!u) throw new Error('โหลดข้อมูลผู้ใช้ไม่สำเร็จ')
       setUser(u)
       return u
@@ -253,8 +317,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  const refreshProfile = async (): Promise<void> => {
+    if (!supabaseConfigured || !supabase) return
+    const sb = supabase as NonNullable<typeof supabase>
+    const { data } = await sb.auth.getUser()
+    if (!data.user) return
+    try {
+      const bundle = await loadProfile(sb, data.user.id)
+      setUser(toAppUser(data.user, bundle.profile, bundle.faceEnrolled))
+    } catch (e) {
+      console.error('refreshProfile failed:', e)
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider
+      value={{ user, loading, signIn, signUp, signOut, refreshProfile }}
+    >
       {children}
     </AuthContext.Provider>
   )

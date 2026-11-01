@@ -1,9 +1,13 @@
 import { useAuth } from '../auth'
 import { PageFade } from '../components/motion'
+import ProfilePhotoUploader from '../components/profile/ProfilePhotoUploader'
+import { profileAvatarUrl } from '../lib/profileFaceService'
 import { Mail, ShieldCheck, User as UserIcon } from 'lucide-react'
 
 export default function DashboardAccount() {
   const { user } = useAuth()
+  const avatarUrl = profileAvatarUrl(user?.avatarPath)
+  const hasProfileFace = Boolean(user?.avatarPath) && user?.faceEnrolled !== false
 
   return (
     <PageFade className="max-w-2xl">
@@ -12,8 +16,16 @@ export default function DashboardAccount() {
 
       <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center gap-4 bg-gradient-to-br from-brand-600 to-brand-700 px-6 py-6 text-white">
-          <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/15">
-            <UserIcon size={26} />
+          <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/15">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="ภาพโปรไฟล์"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <UserIcon size={26} />
+            )}
           </span>
           <div className="min-w-0">
             <p className="truncate text-lg font-bold">
@@ -40,6 +52,20 @@ export default function DashboardAccount() {
             }
           />
         </dl>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <h3 className="text-base font-bold text-slate-900">ภาพโปรไฟล์</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          ใช้สำหรับยืนยันตัวตนและค้นหาภาพด้วยใบหน้า — ภาพใหม่ต้องเป็นใบหน้าเดิม
+          เพื่อความปลอดภัยของเจ้าของข้อมูล
+        </p>
+        <div className="mt-4">
+          <ProfilePhotoUploader
+            verifyExisting={hasProfileFace}
+            submitLabel={hasProfileFace ? 'เปลี่ยนภาพโปรไฟล์' : 'บันทึกภาพโปรไฟล์'}
+          />
+        </div>
       </div>
     </PageFade>
   )

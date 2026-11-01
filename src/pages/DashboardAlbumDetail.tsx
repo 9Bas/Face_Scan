@@ -251,7 +251,7 @@ export default function DashboardAlbumDetail() {
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-400">
           อัปโหลดรูป
         </h2>
-        <UploadDropzone albumId={album.id} onUploaded={reload} isPublicAlbum={true} />
+        <UploadDropzone albumId={album.id} onUploaded={reload}  />
       </section>
 
       {/* Photos grid */}

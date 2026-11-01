@@ -12,7 +12,12 @@ begin
     coalesce(new.raw_user_meta_data->>'display_name',''),
     'user'
   )
-  on conflict (id) do update set role = 'user', email = excluded.email, display_name = coalesce(excluded.display_name, public.profiles.display_name);
+  -- On conflict we deliberately do NOT touch role: a profile that already
+  -- exists (e.g. a photographer account) must keep its role. New signups are
+  -- 'user' because that is what the insert above supplies.
+  on conflict (id) do update
+    set email = excluded.email,
+        display_name = coalesce(excluded.display_name, public.profiles.display_name);
   return new;
 end;
 $$;

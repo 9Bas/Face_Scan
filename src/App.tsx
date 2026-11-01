@@ -3,10 +3,12 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Header from './components/Header'
 import { AuthProvider } from './auth'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import ProfileGate from './components/auth/ProfileGate'
 import Home from './pages/Home'
 import Gallery from './pages/Gallery'
 import Album from './pages/Album'
 import Login from './pages/Login'
+import SetupProfile from './pages/SetupProfile'
 import DashboardLayout from './pages/DashboardLayout'
 import Dashboard from './pages/Dashboard'
 import DashboardAlbums from './pages/DashboardAlbums'
@@ -56,13 +58,16 @@ export default function App() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
             >
-              <Routes location={location} key={location.pathname}>
-                <Route path="/" element={<Home />} />
-                <Route path="/gallery" element={<Gallery />} />
-                <Route path="/gallery/:albumId" element={<Album />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <ProfileGate>
+                <Routes location={location} key={location.pathname}>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/gallery" element={<Gallery />} />
+                  <Route path="/gallery/:albumId" element={<Album />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/setup-profile" element={<SetupProfile />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </ProfileGate>
             </motion.div>
           </AnimatePresence>
         </main>

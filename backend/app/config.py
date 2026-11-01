@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # Search
     face_top_k: int = 30
     face_match_max_distance: float = 0.6  # cosine distance; lower = stricter
+    # Profile enrollment / selfie verification — the candidate face must be
+    # within this cosine distance of the stored profile face.
+    profile_verify_max_distance: float = 0.55
     # Indexing
     index_batch_size: int = 8
     index_max_retries: int = 2

@@ -131,7 +131,6 @@ export async function uploadPhotos(
   files: File[],
   onProgress: (p: UploadProgress) => void,
   signal?: AbortSignal,
-  options?: { isPublicAlbum?: boolean },
 ): Promise<{
   uploaded: PhotoRow[]
   failed: UploadFileState[]
@@ -180,22 +179,6 @@ export async function uploadPhotos(
     emit(files[index].name)
 
     try {
-      if (options?.isPublicAlbum) {
-        const { checkImageNsfw } = await import('./nsfwFilter')
-        const nsfw = await checkImageNsfw(files[index])
-        if (nsfw.blocked) {
-          state.status = 'error'
-          state.error = nsfw.reason ?? 'รูปภาพนี้ไม่ผ่านเกณฑ์'
-          failed.push(state)
-          done += 1
-          emit(null)
-          if (state.previewUrl) {
-            setTimeout(() => URL.revokeObjectURL(state.previewUrl!), 1000)
-            state.previewUrl = undefined
-          }
-          return
-        }
-      }
       const { storagePath, thumbnailPath, fileSize, mimeType, width, height } =
         await uploadWithRetry(files[index], albumId, signal)
       const dims =

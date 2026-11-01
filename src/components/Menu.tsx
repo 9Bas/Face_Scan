@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
-import { LayoutDashboard, LogIn, LogOut, UserPlus, X } from 'lucide-react'
+import { LayoutDashboard, LogIn, LogOut, User, UserPlus, X } from 'lucide-react'
 import { useAuth } from '../auth'
+import { profileAvatarUrl } from '../lib/profileFaceService'
 
 interface MenuProps {
   open: boolean
@@ -9,6 +10,7 @@ interface MenuProps {
 
 export default function Menu({ open, onClose }: MenuProps) {
   const { user, signOut } = useAuth()
+  const avatarUrl = profileAvatarUrl(user?.avatarPath)
 
   const handleLogout = () => {
     void signOut()
@@ -57,15 +59,38 @@ export default function Menu({ open, onClose }: MenuProps) {
             </p>
             {user ? (
               <div className="space-y-1">
-                <div className="rounded-xl bg-brand-50 px-3 py-3">
-                  <p className="text-sm font-semibold text-brand-800">
-                    {user.displayName ?? user.email}
-                  </p>
-                  <p className="truncate text-xs text-brand-600">{user.email}</p>
-                  <p className="mt-1 text-[11px] font-medium text-brand-700">
-                    {user.role === 'admin' ? 'ผู้ดูแลระบบ' : user.role === 'photographer' ? 'ช่างภาพ' : 'สมาชิก'}
-                  </p>
+                <div className="flex items-center gap-3 rounded-xl bg-brand-50 px-3 py-3">
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-brand-600 ring-1 ring-brand-100">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt="ภาพโปรไฟล์"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <User size={20} />
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-brand-800">
+                      {user.displayName ?? user.email}
+                    </p>
+                    <p className="truncate text-xs text-brand-600">{user.email}</p>
+                    <p className="mt-0.5 text-[11px] font-medium text-brand-700">
+                      {user.role === 'admin' ? 'ผู้ดูแลระบบ' : user.role === 'photographer' ? 'ช่างภาพ' : 'สมาชิก'}
+                    </p>
+                  </div>
                 </div>
+                {user.role === 'user' && user.faceEnrolled !== false && user.avatarPath && (
+                  <Link
+                    to="/setup-profile"
+                    onClick={onClose}
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-base font-semibold text-slate-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                  >
+                    <User size={20} className="text-brand-600" />
+                    ภาพโปรไฟล์ของฉัน
+                  </Link>
+                )}
                 {user.role !== 'user' && (
                   <Link
                     to="/dashboard"

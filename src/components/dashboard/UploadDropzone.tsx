@@ -19,15 +19,12 @@ interface UploadDropzoneProps {
   onUploaded: () => void
   /** Variant — modal (inside album detail) vs inline (page). */
   variant?: 'inline' | 'modal'
-  /** Check NSFW for public album */
-  isPublicAlbum?: boolean
 }
 
 export default function UploadDropzone({
   albumId,
   onUploaded,
   variant = 'inline',
-  isPublicAlbum = false,
 }: UploadDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const cancelRef = useRef<AbortController | null>(null)
@@ -69,7 +66,7 @@ export default function UploadDropzone({
             : undefined,
         })),
       })
-      const res = await uploadPhotos(albumId, arr, setProgress, ctrl.signal, { isPublicAlbum })
+      const res = await uploadPhotos(albumId, arr, setProgress, ctrl.signal)
       cancelRef.current = null
       setBusy(false)
       setSummary({
@@ -79,7 +76,7 @@ export default function UploadDropzone({
       })
       if (res.uploaded.length > 0) onUploaded()
     },
-    [albumId, onUploaded, isPublicAlbum],
+    [albumId, onUploaded],
   )
 
   const stopUpload = () => {

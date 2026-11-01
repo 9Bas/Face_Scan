@@ -1,4 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Camera,
@@ -6,17 +7,15 @@ import {
   Download,
   ImageUp,
   Loader2,
+  LogIn,
   ScanFace,
   Search as SearchIcon,
+  UserCog,
   X,
 } from 'lucide-react'
 import { type Photo, downloadPhoto } from '../data'
-import { searchByFace } from '../lib/faceSearchService'
+import { profileAvatarUrl, searchByProfileFace } from '../lib/profileFaceService'
 import { useAuth } from '../auth'
-// Staff debug — similarity/faces UI is disabled (commented out). To re-enable:
-//  1. restore `type FaceSearchResult` in the import above
-//  2. restore the `useAuth` import + `isStaff`/`user` lines
-//  3. restore `rawResults`/`facesDetected` state, the setters, and the JSX blocks below
 import ImageCard from './ImageCard'
 import ImageViewer from './ImageViewer'
 
@@ -36,15 +35,13 @@ export default function FaceSearchModal({
   albumId,
 }: FaceSearchModalProps) {
   const { user } = useAuth()
-  // const isStaff = !!user // staff debug
+  const avatarUrl = profileAvatarUrl(user?.avatarPath)
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [fileName, setFileName] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [statusLabel, setStatusLabel] = useState('กำลังสแกนใบหน้า…')
   const [results, setResults] = useState<Photo[]>([])
-  // const [rawResults, setRawResults] = useState<FaceSearchResult[]>([]) // staff debug
-  // const [facesDetected, setFacesDetected] = useState(0) // staff debug
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [searchError, setSearchError] = useState('')
   const [downloading, setDownloading] = useState(false)
@@ -59,8 +56,7 @@ export default function FaceSearchModal({
     setResults([])
     setSelectMode(false)
     setSelected(new Set())
-    // setRawResults([]) // staff debug
-    // setFacesDetected(0) // staff debug
+    lastFileRef.current = null
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -83,22 +79,20 @@ export default function FaceSearchModal({
     setResults([])
   }
 
-  const triggerSearch = async () => {
-    if (!preview || !lastFileRef.current) return
+  const runSearch = async (file?: File | null) => {
+    if (!user) return
     setStatus('loading')
     setSearchError('')
     setResults([])
     setSelectMode(false)
     setSelected(new Set())
-    // setRawResults([]) // staff debug
-    setStatusLabel('กำลังสแกนใบหน้าด้วย ArcFace…')
+    setStatusLabel(
+      file
+        ? 'กำลังตรวจสอบว่าเป็นใบหน้าของคุณ…'
+        : 'กำลังค้นหาด้วยใบหน้าจากโปรไฟล์ของคุณ…',
+    )
     try {
-      const { results: hits } = await searchByFace(
-        lastFileRef.current,
-        { albumId },
-      )
-      // setFacesDetected(n) // staff debug
-      // setRawResults(hits) // staff debug
+      const hits = await searchByProfileFace({ albumId, file: file ?? null })
       const mapped: Photo[] = hits.map((h) => ({
         id: h.photo_id,
         url: h.url,
@@ -113,6 +107,11 @@ export default function FaceSearchModal({
       setSearchError(err instanceof Error ? err.message : 'ค้นหาไม่สำเร็จ')
       setStatus('error')
     }
+  }
+
+  const triggerSelfieSearch = () => {
+    if (!lastFileRef.current) return
+    void runSearch(lastFileRef.current)
   }
 
   const openViewer = (photo: Photo) => {
@@ -151,6 +150,9 @@ export default function FaceSearchModal({
     }
     setDownloading(false)
   }
+
+  const needsSetup = !!user && user.faceEnrolled === false
+  const showProfilePicker = !preview && status === 'idle'
 
   return (
     <AnimatePresence>
@@ -209,93 +211,195 @@ export default function FaceSearchModal({
               />
 
               <AnimatePresence mode="wait">
-                {!preview ? (
+                {/* 1) Signed out — face search is tied to the member profile */}
+                {!user ? (
                   <motion.div
-                    key="drop"
+                    key="signed-out"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    onClick={() => fileRef.current?.click()}
-                    className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center transition-colors hover:border-brand-400 hover:bg-brand-50/50"
+                    className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-6 py-12 text-center"
                   >
                     <span className="inline-flex rounded-2xl bg-white p-4 text-brand-600 shadow-sm ring-1 ring-slate-100">
-                      <ImageUp size={28} />
+                      <LogIn size={28} />
                     </span>
                     <p className="mt-4 text-base font-semibold text-slate-700">
-                      อัปโหลดรูปใบหน้าของคุณ
+                      เข้าสู่ระบบเพื่อค้นหาด้วยใบหน้า
                     </p>
-                    <p className="mt-1 text-sm text-slate-400">
-                      ลากวาง หรือคลิกเพื่อเลือกรูป (JPG / PNG)
+                    <p className="mt-1 max-w-sm text-sm text-slate-400">
+                      ระบบค้นหาและดาวน์โหลดจะแสดงเฉพาะภาพที่มีใบหน้าของเจ้าของบัญชีเท่านั้น
                     </p>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        fileRef.current?.click()
-                      }}
+                    <Link
+                      to="/login"
+                      onClick={close}
+                      className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+                    >
+                      <LogIn size={16} />
+                      เข้าสู่ระบบ
+                    </Link>
+                  </motion.div>
+                ) : needsSetup ? (
+                  /* 2) Member without a profile face */
+                  <motion.div
+                    key="needs-setup"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-6 py-12 text-center"
+                  >
+                    <span className="inline-flex rounded-2xl bg-white p-4 text-brand-600 shadow-sm ring-1 ring-slate-100">
+                      <UserCog size={28} />
+                    </span>
+                    <p className="mt-4 text-base font-semibold text-slate-700">
+                      ยังไม่ได้ตั้งภาพโปรไฟล์
+                    </p>
+                    <p className="mt-1 max-w-sm text-sm text-slate-400">
+                      ตั้งภาพโปรไฟล์ของคุณก่อน เพื่อให้ระบบค้นหาได้เฉพาะภาพที่ตรงกับใบหน้าของคุณ
+                    </p>
+                    <Link
+                      to="/setup-profile"
+                      onClick={close}
                       className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
                     >
                       <Camera size={16} />
-                      เลือกรูปใบหน้า
-                    </button>
+                      ตั้งภาพโปรไฟล์
+                    </Link>
+                  </motion.div>
+                ) : showProfilePicker ? (
+                  /* 3) Search using the enrolled profile face */
+                  <motion.div
+                    key="profile"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="flex flex-col gap-4"
+                  >
+                    <div className="flex flex-col items-center rounded-2xl border border-brand-100 bg-brand-50/60 px-6 py-8 text-center">
+                      <div className="relative h-24 w-24 overflow-hidden rounded-full bg-white shadow-sm ring-4 ring-white">
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt="ภาพโปรไฟล์ของคุณ"
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center text-brand-500">
+                            <ScanFace size={34} />
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-4 text-base font-semibold text-slate-800">
+                        ค้นหาด้วยใบหน้าของคุณ
+                      </p>
+                      <p className="mt-1 max-w-md text-sm text-slate-500">
+                        ระบบใช้ใบหน้าจากภาพโปรไฟล์ในการค้นหา จึงแสดงเฉพาะภาพของเจ้าของบัญชีเท่านั้น
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void runSearch(null)}
+                        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+                      >
+                        <SearchIcon size={16} />
+                        ค้นหาด้วยใบหน้าของฉัน
+                      </button>
+                    </div>
+
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4">
+                      <div className="flex items-start gap-3">
+                        <span className="inline-flex rounded-xl bg-slate-100 p-2 text-slate-500">
+                          <ImageUp size={20} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-slate-700">
+                            หรือใช้รูปเซลฟี่
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            ระบบจะตรวจว่าเป็นใบหน้าของคุณก่อนค้นหา (ไม่บันทึกเป็นโปรไฟล์)
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => fileRef.current?.click()}
+                            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
+                          >
+                            <Camera size={16} />
+                            เลือกรูปเซลฟี่
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </motion.div>
                 ) : (
+                  /* 4) Selfie preview / loading / error / results */
                   <motion.div
                     key="preview"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="flex flex-col gap-4"
                   >
-                    <div className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-                      <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                        <img
-                          src={preview}
-                          alt="Selected face"
-                          className="absolute inset-0 h-full w-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={reset}
-                          aria-label="Remove"
-                          className="absolute right-1 top-1 rounded-full bg-slate-900/70 p-1 text-white transition-colors hover:bg-slate-900"
-                        >
-                          <X size={13} />
-                        </button>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-slate-700">
-                          รูปที่เลือก
-                        </p>
-                        <p className="mt-0.5 truncate text-xs text-slate-400">
-                          {fileName}
-                        </p>
-                        <div className="mt-3 flex flex-wrap gap-2">
+                    {preview && (
+                      <div className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                          <img
+                            src={preview}
+                            alt="Selected face"
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
                           <button
                             type="button"
-                            onClick={triggerSearch}
-                            disabled={status === 'loading'}
-                            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
+                            onClick={reset}
+                            aria-label="Remove"
+                            className="absolute right-1 top-1 rounded-full bg-slate-900/70 p-1 text-white transition-colors hover:bg-slate-900"
                           >
-                            {status === 'loading' ? (
-                              <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                              <SearchIcon size={16} />
-                            )}
-                            {status === 'loading' ? 'กำลังค้นหา…' : 'ค้นหา'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => fileRef.current?.click()}
-                            className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
-                          >
-                            เปลี่ยนรูป
+                            <X size={13} />
                           </button>
                         </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-slate-700">
+                            รูปเซลฟี่ที่เลือก
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-slate-400">
+                            {fileName}
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={triggerSelfieSearch}
+                              disabled={status === 'loading'}
+                              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
+                            >
+                              {status === 'loading' ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <SearchIcon size={16} />
+                              )}
+                              {status === 'loading' ? 'กำลังค้นหา…' : 'ตรวจสอบและค้นหา'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => fileRef.current?.click()}
+                              className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
+                            >
+                              เปลี่ยนรูป
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    {/* Loading */}
-                    {status === 'loading' && (
+                    {/* Profile search loading (no selfie preview) */}
+                    {!preview && status === 'loading' && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="flex flex-col items-center justify-center gap-2.5 py-8 text-slate-400"
+                      >
+                        <Loader2 size={22} className="animate-spin text-brand-600" />
+                        <span className="text-sm">{statusLabel}</span>
+                      </motion.div>
+                    )}
+
+                    {/* Loading (selfie) */}
+                    {preview && status === 'loading' && (
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -308,13 +412,25 @@ export default function FaceSearchModal({
 
                     {/* Error */}
                     {status === 'error' && (
-                      <motion.p
+                      <motion.div
                         initial={{ opacity: 0, y: -6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600"
+                        className="space-y-2"
                       >
-                        {searchError}
-                      </motion.p>
+                        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600">
+                          {searchError}
+                        </p>
+                        {!preview && (
+                          <button
+                            type="button"
+                            onClick={() => void runSearch(null)}
+                            className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
+                          >
+                            <SearchIcon size={16} />
+                            ลองใหม่ด้วยใบหน้าโปรไฟล์
+                          </button>
+                        )}
+                      </motion.div>
                     )}
 
                     {/* Results */}
@@ -375,46 +491,36 @@ export default function FaceSearchModal({
                                   </button>
                                 </>
                               ))}
+                            <button
+                              type="button"
+                              onClick={reset}
+                              className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 ring-1 ring-brand-200 transition-colors hover:bg-brand-50"
+                            >
+                              ค้นใหม่
+                            </button>
                           </div>
                         </div>
                         {results.length === 0 ? (
                           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 py-10 text-center">
                             <p className="text-slate-500">ไม่พบภาพที่ตรง</p>
                             <p className="mt-1 text-sm text-slate-400">
-                              ลองใช้รูปใบหน้าที่ชัดขึ้น
+                              ยังไม่มีภาพของคุณในอัลบั้มนี้
                             </p>
                           </div>
                         ) : (
-                          <>
-                            {/* staff debug: similarity legend
-                            {isStaff && (
-                              <div className="mb-2 text-xs text-slate-400">
-                                ค่าความคล้าย = 1 − cosine distance (ยิ่งใกล้ 1 ยิ่งเหมือน)
-                                · ระยะทางต่ำสุด {rawResults[0]?.distance.toFixed(3)}
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                            {results.map((photo) => (
+                              <div key={photo.id} className="relative">
+                                <ImageCard
+                                  photo={photo}
+                                  onClick={openViewer}
+                                  selectable={selectMode}
+                                  selected={selected.has(photo.id)}
+                                  onToggleSelect={toggleSelect}
+                                />
                               </div>
-                            )}
-                            */}
-                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                              {results.map((photo) => (
-                                <div key={photo.id} className="relative">
-                                  <ImageCard
-                                    photo={photo}
-                                    onClick={openViewer}
-                                    selectable={selectMode}
-                                    selected={selected.has(photo.id)}
-                                    onToggleSelect={toggleSelect}
-                                  />
-                                  {/* staff debug: per-photo similarity
-                                  {isStaff && (
-                                    <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                                      {rawResults[i]?.similarity.toFixed(2)}
-                                    </span>
-                                  )}
-                                  */}
-                                </div>
-                              ))}
-                            </div>
-                          </>
+                            ))}
+                          </div>
                         )}
                       </motion.div>
                     )}

@@ -9,6 +9,7 @@ export interface Profile {
   email: string | null
   display_name: string | null
   role: Role
+  avatar_path?: string | null
   created_at: string
 }
 

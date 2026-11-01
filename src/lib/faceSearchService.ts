@@ -11,7 +11,7 @@ import { storage } from './storage'
 const FACE_API_URL = import.meta.env.VITE_FACE_API_URL as string | undefined
 const INDEX_API_KEY = import.meta.env.VITE_FACE_INDEX_API_KEY ?? ''
 
-function apiUrl(path: string): string {
+export function apiUrl(path: string): string {
   // In dev, Vite proxies /api/* (see vite.config.ts), so a relative path works.
   // In production there's no proxy — build a full URL from the env var.
   return FACE_API_URL ? `${FACE_API_URL.replace(/\/+$/, '')}${path}` : path
@@ -55,8 +55,24 @@ export class FaceSearchError extends Error {
   }
 }
 
-function mapResult(
-  r: FaceSearchResponse['results'][number],
+export interface FaceSearchRow {
+  photo_id: string
+  album_id: string
+  filename: string
+  storage_path: string
+  thumbnail_path: string | null
+  face_id: string
+  face_index: number
+  bbox_x: number
+  bbox_y: number
+  bbox_width: number
+  bbox_height: number
+  distance: number
+  similarity?: number
+}
+
+export function mapFaceSearchResult(
+  r: FaceSearchRow,
 ): FaceSearchResult {
   const view = storage.getViewUrl(r.storage_path)
   const thumb = r.thumbnail_path
@@ -118,7 +134,7 @@ export async function searchByFace(
     throw new FaceSearchError(msg, resp.status)
   }
   const data = (await resp.json()) as FaceSearchResponse
-  const results = data.results.map((r) => mapResult(r))
+  const results = data.results.map((r) => mapFaceSearchResult(r))
   return {
     results,
     facesDetected: data.query_faces_detected,
