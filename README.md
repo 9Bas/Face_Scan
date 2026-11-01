@@ -1,4 +1,4 @@
-# Face Scan ·AI Face Search Gallery
+# Face Scan ·AI Face Search Gallery (Demo)
 
 ---
 
@@ -20,12 +20,12 @@
 
 | ส่วน | สถานะ | รายละเอียด |
 |------|-------|-----------|
-| 1 · หน้าเว็บ (Frontend) | ✅ เสร็จ | Home, Gallery, Album, Image Viewer, ค้นหาใบหน้า, Login/สมัครสมาชิก, ตั้งค่าโปรไฟล์, Dashboard (ภาพรวม · อัลบั้ม · คำขอลบรูป · บัญชี) |
-| 2 · หลังบ้าน + Login + ฐานข้อมูล | ✅ เสร็จ | Supabase Auth / PostgreSQL + pgvector / RLS — สมัครได้เฉพาะอีเมล `@psru.ac.th`, role `user` / `photographer` / `admin` |
-| 3 · AI ค้นหาใบหน้า | ✅ เสร็จ | FastAPI + InsightFace (ArcFace) — ค้นหาด้วยใบหน้าจากโปรไฟล์ (`/profile/search`) + ลงทะเบียน/ยืนยันใบหน้า (`/profile/enroll`) |
-| 4 · เก็บรูป | ✅ เสร็จ | Cloudflare R2 (bucket `face-scan-images`) ผ่าน Cloudflare Worker |
-| 5 · ฟีเจอร์สมาชิก | ✅ เสร็จ | โปรไฟล์ประจำตัว, คำขอลบรูป (ยื่น → อนุมัติ/ปฏิเสธ), watermark + anti-copy |
-| 6 · Deploy จริง | 🟢 ใช้งาน | Frontend → Vercel · AI → Google Cloud Run · รูป → R2 ผ่าน Worker (ดูหัวข้อ Deploy) |
+| 1 · หน้าเว็บ (Frontend) | เสร็จ | Home, Gallery, Album, Image Viewer, ค้นหาใบหน้า, Login/สมัครสมาชิก, ตั้งค่าโปรไฟล์, Dashboard (ภาพรวม · อัลบั้ม · คำขอลบรูป · บัญชี) |
+| 2 · หลังบ้าน + Login + ฐานข้อมูล | เสร็จ | Supabase Auth / PostgreSQL + pgvector / RLS — สมัครได้เฉพาะอีเมล `@psru.ac.th`, role `user` / `photographer` / `admin` |
+| 3 · AI ค้นหาใบหน้า | เสร็จ | FastAPI + InsightFace (ArcFace) — ค้นหาด้วยใบหน้าจากโปรไฟล์ (`/profile/search`) + ลงทะเบียน/ยืนยันใบหน้า (`/profile/enroll`) |
+| 4 · เก็บรูป | เสร็จ | Cloudflare R2 (bucket `face-scan-images`) ผ่าน Cloudflare Worker |
+| 5 · ฟีเจอร์สมาชิก | เสร็จ | โปรไฟล์ประจำตัว, คำขอลบรูป (ยื่น → อนุมัติ/ปฏิเสธ), watermark + anti-copy |
+| 6 · Deploy จริง | ใช้งาน | Frontend → Vercel · AI → Google Cloud Run · รูป → R2 ผ่าน Worker (ดูหัวข้อ Deploy) |
 
 ---
 
@@ -169,7 +169,7 @@ grant execute on function public.get_my_profile() to authenticated, anon;
 Dashboard → Authentication → Providers → Email → ปิด "Confirm email"
 
 ### 5. สร้าง Storage Bucket ชื่อ `photos` (เปิด Public)
-Dashboard → Storage → New bucket → ชื่อ `photos` → Public: ✅ แล้วรัน policy นี้:
+Dashboard → Storage → New bucket → ชื่อ `photos` → Public: แล้วรัน policy นี้:
 
 ```sql
 drop policy if exists "photos_public_read" on storage.objects;
@@ -236,13 +236,13 @@ python -m scripts.backfill_thumbs            # สร้าง thumbnail ที�
 
 ## Security
 
-- ✅ **RLS ทุกตาราง** — ช่างภาพเห็น/แก้ได้เฉพาะข้อมูลของตัวเอง (บังคับที่ระดับฐานข้อมูล)
-- ✅ **Service Role Key อยู่ฝั่ง server เท่านั้น** — ไม่อยู่ในโค้ดหน้าเว็บ
-- ✅ **envGuard** — เว็บตรวจตอนเปิดว่าไม่มีคีย์ลับหลุดเข้าไปใน bundle
-- ✅ **ฟังก์ชัน `get_my_profile`** — ข้าม RLS แค่สำหรับข้อมูลตัวเอง (security definer)
-- ✅ **ไบโอเมตริกแยกตาราง** — `profile_faces` ถูก revoke จาก `anon`/`authenticated` + force RLS; เข้าถึงได้เฉพาะ service role ฝั่ง backend
-- ✅ **Role guard** — trigger บังคับสมาชิกใหม่เป็น `user` และบล็อกการเปลี่ยน role จากฝั่ง client
-- ✅ **คำขอลบรูปมี RLS** — ผู้ใช้เห็น/ยื่นได้เฉพาะคำขอของตัวเอง; ช่างภาพ/แอดมินเท่านั้นที่อนุมัติได้
+- **RLS ทุกตาราง** — ช่างภาพเห็น/แก้ได้เฉพาะข้อมูลของตัวเอง (บังคับที่ระดับฐานข้อมูล)
+- **Service Role Key อยู่ฝั่ง server เท่านั้น** — ไม่อยู่ในโค้ดหน้าเว็บ
+- **envGuard** — เว็บตรวจตอนเปิดว่าไม่มีคีย์ลับหลุดเข้าไปใน bundle
+- **ฟังก์ชัน `get_my_profile`** — ข้าม RLS แค่สำหรับข้อมูลตัวเอง (security definer)
+- **ไบโอเมตริกแยกตาราง** — `profile_faces` ถูก revoke จาก `anon`/`authenticated` + force RLS; เข้าถึงได้เฉพาะ service role ฝั่ง backend
+- **Role guard** — trigger บังคับสมาชิกใหม่เป็น `user` และบล็อกการเปลี่ยน role จากฝั่ง client
+- **คำขอลบรูปมี RLS** — ผู้ใช้เห็น/ยื่นได้เฉพาะคำขอของตัวเอง; ช่างภาพ/แอดมินเท่านั้นที่อนุมัติได้
 
 ---
 
@@ -328,15 +328,3 @@ Face_Scan/
 ├── Dockerfile / railway.json   # ทางเลือก deploy AI ผ่าน Railway
 └── vercel.json                 # SPA rewrite สำหรับ Vercel
 ```
-
----
-
-## สิ่งที่วางแผนไว้ (Roadmap)
-
-> ปัจจุบันใช้อยู่แล้ว: **Cloudflare R2** ผ่าน Worker (เก็บรูปจริงเป็นหลัก) · **thumbnail** อัตโนมัติ (sweeper + backfill) · migration 0001 → 0009 · deploy สามชั้น Vercel + Cloud Run + R2 Worker · สมัครสมาชิก `@psru.ac.th` · โปรไฟล์ใบหน้า (enroll/verify) · คำขอลบรูป · watermark/anti-copy
-
-แนวทางที่ยังทำได้ต่อ:
-- แจ้งเตือนสมาชิกเมื่อคำขอลบรูปได้รับการอนุมัติ/ปฏิเสธ
-- หน้าจัดการผู้ใช้สำหรับแอดมิน (เปลี่ยน role ได้จาก UI)
-- ลบ/ปิดใช้งานบัญชี (PDPA right to erasure) พร้อมลบ embedding ที่เกี่ยวข้อง
-- จำกัดจำนวนครั้งการค้นหาต่อผู้ใช้ (rate limit) และ audit log การเข้าถึงข้อมูลไบโอเมตริก
