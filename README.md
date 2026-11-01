@@ -1,18 +1,21 @@
 # Face Scan · PSRU AI Face Search Gallery
 
-เว็บรวมภาพกิจกรรมมหาวิทยาลัยพิบูลสงคราม — ผู้ใช้อัปโหลดรูปตัวเอง/เซลฟี่ แล้ว AI ค้นหาภาพที่ตรงกัน
+เว็บรวมภาพกิจกรรมมหาวิทยาลัยพิบูลสงคราม — สมาชิกสมัครด้วยอีเมลมหาวิทยาลัย ตั้งโปรไฟล์ใบหน้า แล้วให้ AI ช่วยค้นหาภาพที่ตัวเองอยู่ในอัลบั้ม
 
 ---
 
 ## โปรเจกต์นี้คืออะไร (อ่านก่อนเลย ไม่ต้องเป็นคนเขียนโค้ด)
 
-ระบบมีผู้ใช้ 2 ฝั่ง:
+ระบบมีผู้ใช้ 3 กลุ่ม:
 
-1. **ช่างภาพ** — ล็อกอินเข้ามา สร้างอัลบั้ม แล้วอัปโหลดรูปกิจกรรม (ทีละหลายร้อยรูปได้)
-2. **ผู้เข้าชม** — เปิดเว็บ เลือกอัลบั้ม ดูรูป แล้ว**ค้นหารูปตัวเอง**ได้โดยแค่อัปโหลดรูปหน้าตัวเอง ระบบ AI จะหาว่ามีรูปไหนในอัลบั้มที่มีหน้าเราอยู่
+1. **สมาชิก (`user`)** — สมัครด้วยอีเมล `@psru.ac.th` ตั้งโปรไฟล์ + สแกนใบหน้าครั้งแรก แล้วค้นหารูปตัวเองได้ทันที
+2. **ช่างภาพ (`photographer`)** — ล็อกอินเข้ามา สร้างอัลบั้ม อัปโหลดรูปกิจกรรม (ทีละหลายร้อยรูปได้) และอนุมัติ/ปฏิเสธคำขอลบรูป
+3. **แอดมิน (`admin`)** — จัดการผู้ใช้/อัลบั้ม และอนุมัติคำขอลบรูปได้เช่นกัน
 
 **AI ทำงานยังไง (อธิบายง่ายๆ):** ตอนช่างภาพอัปโหลดรูป ระบบจะ "สแกน" หาใบหน้าในรูป แล้วแปลงใบหน้าแต่ละหน้าออกมาเป็น**รหัสตัวเลข 512 ตัว** (เรียกว่า embedding) เก็บลงฐานข้อมูล
 เวลาผู้เข้าชมอัปโหลดรูปหน้าเพื่อค้นหา ระบบก็แปลงหน้าของเราออกมาเป็นรหัสตัวเลขแบบเดียวกัน แล้วไป**เทียบหารหัสที่ใกล้เคียงที่สุด** — ใครใกล้ที่สุด = หน้าน่าจะเป็นคนเดียวกัน รูปไหนที่ "ห่าง" เกินค่าที่กำหนด (threshold) ก็จะไม่เอามาแสดง
+
+**สมาชิกมีโปรไฟล์หน้าเป็นของตัวเอง:** ผู้ใช้สมัครด้วยอีเมล `@psru.ac.th` แล้วอัปโหลดรูปโปรไฟล์ + สแกนใบหน้าครั้งเดียว (enrollment) ระบบเก็บเฉพาะ "รหัสตัวเลข 512 ตัว" ของใบหน้าไว้ใช้ค้นหา — ไม่เก็บรูปที่ใช้สแกน และไม่มีใครอ่านรหัสใบหน้านี้ได้นอกจาก backend (service role) หลังจากนั้นเวลาค้นหารูป ระบบใช้ใบหน้าจากโปรไฟล์ได้เลย ไม่ต้องอัปโหลดเซลฟี่ซ้ำ
 
 ---
 
@@ -20,11 +23,23 @@
 
 | ส่วน | สถานะ | รายละเอียด |
 |------|-------|-----------|
-| 1 · หน้าเว็บ (Frontend) | ✅ เสร็จ | Home, Gallery, Album, Image Viewer, ค้นหาด้วยใบหน้า, Login + Dashboard ช่างภาพ |
-| 2 · หลังบ้าน + Login + ฐานข้อมูล | ✅ เสร็จ | Supabase Auth / PostgreSQL + pgvector / RLS |
-| 3 · AI ค้นหาใบหน้า | ✅ เสร็จ | FastAPI + InsightFace (ArcFace) — อัปโหลดรูปหน้า → ค้นหาคนที่คล้ายที่สุด |
+| 1 · หน้าเว็บ (Frontend) | ✅ เสร็จ | Home, Gallery, Album, Image Viewer, ค้นหาใบหน้า, Login/สมัครสมาชิก, ตั้งค่าโปรไฟล์, Dashboard (ภาพรวม · อัลบั้ม · คำขอลบรูป · บัญชี) |
+| 2 · หลังบ้าน + Login + ฐานข้อมูล | ✅ เสร็จ | Supabase Auth / PostgreSQL + pgvector / RLS — สมัครได้เฉพาะอีเมล `@psru.ac.th`, role `user` / `photographer` / `admin` |
+| 3 · AI ค้นหาใบหน้า | ✅ เสร็จ | FastAPI + InsightFace (ArcFace) — ค้นหาด้วยใบหน้าจากโปรไฟล์ (`/profile/search`) + ลงทะเบียน/ยืนยันใบหน้า (`/profile/enroll`) |
 | 4 · เก็บรูป | ✅ เสร็จ | Cloudflare R2 (bucket `face-scan-images`) ผ่าน Cloudflare Worker |
-| 5 · Deploy จริง | 🟢 ใช้งาน | Frontend → Vercel · AI → Google Cloud Run · รูป → R2 ผ่าน Worker (ดูหัวข้อ Deploy) |
+| 5 · ฟีเจอร์สมาชิก | ✅ เสร็จ | โปรไฟล์ประจำตัว, คำขอลบรูป (ยื่น → อนุมัติ/ปฏิเสธ), watermark + anti-copy |
+| 6 · Deploy จริง | 🟢 ใช้งาน | Frontend → Vercel · AI → Google Cloud Run · รูป → R2 ผ่าน Worker (ดูหัวข้อ Deploy) |
+
+---
+
+## ฟีเจอร์ฝั่งสมาชิก (ล่าสุด)
+
+- **สมัครสมาชิกเองได้** — เฉพาะอีเมลโดเมน `@psru.ac.th` (role `user`); บัญชีช่างภาพ/แอดมินยังสร้างโดยแอดมิน
+- **โปรไฟล์ + ใบหน้าประจำตัว** — หน้า `/setup-profile` ให้สมาชิกอัปโหลดรูปโปรไฟล์และสแกนใบหน้าครั้งแรก ก่อนใช้งานเว็บ (บังคับด้วย `ProfileGate`) เปลี่ยนรูปภายหลังได้ แต่ต้องผ่านการยืนยันว่าเป็นหน้าเดิม (`PROFILE_VERIFY_MAX_DISTANCE`)
+- **ค้นหาด้วยใบหน้าจากโปรไฟล์** — ไม่ต้องอัปโหลดเซลฟี่ซ้ำ ระบบใช้ embedding ที่ลงทะเบียนไว้ โดยส่งผ่าน backend เท่านั้น
+- **คำขอลบรูป** — สมาชิกกดขอให้ลบรูปพร้อมเหตุผลได้; ช่างภาพ/แอดมินดูที่ Dashboard → คำขอลบรูป แล้วอนุมัติ (ลบรูปจริง) หรือปฏิเสธ
+- **Watermark + anti-copy** — แสดงลายน้ำบนรูป และปิดเมนูคลิกขวา/ลากรูปในหน้าดูรูป
+- **ข้อมูลไบโอเมตริกถูกป้องกัน** — ตาราง `profile_faces` ถูก revoke จาก `anon`/`authenticated` และ force RLS; อ่าน/เขียนได้เฉพาะ service role ฝั่ง backend
 
 ---
 
@@ -87,6 +102,8 @@ uvicorn app.main:app --reload   # เปิด AI ที่ http://localhost:800
 | `SUPABASE_ANON_KEY` | คีย์สาธารณะ สำหรับโหลดรูปจาก Storage (กรณีไม่ใช้ R2) |
 | `FACE_MATCH_MAX_DISTANCE` | ค่าความคล้ายสูงสุดที่ยอมรับ (ยิ่งน้อยยิ่งเคร่ง) ค่าเริ่มต้น 0.6 |
 | `FACE_TOP_K` | จำนวนผลลัพธ์สูงสุดที่คืน ค่าเริ่มต้น 30 |
+| `PROFILE_VERIFY_MAX_DISTANCE` | ค่าสูงสุดที่ยอมให้ตอน "เปลี่ยนรูปโปรไฟล์" ต้องตรงกับหน้าเดิม (ค่าเริ่มต้น 0.55) |
+| `INDEX_SWEEP_INTERVAL_SECONDS` | รอบการไล่สแกนรูปที่ยังไม่มี thumbnail (ค่าเริ่มต้น 60 วินาที) |
 | `R2_WORKER_URL` | URL ของ Cloudflare Worker (เช่น `https://cs.face-scan-r2.workers.dev`) — ใช้โหลดรูปจาก R2 และอัปโหลด thumbnail |
 | `R2_THUMB_API_KEY` | คีย์ลับที่ backend ใช้เขียน thumbnail กลับเข้า R2 (ต้องตรงกับ `THUMB_API_KEY` ของ Worker) |
 | `INDEX_API_KEY` | รหัสลับสำหรับเรียก /index (ว่าง = เปิดใน dev) |
@@ -99,14 +116,23 @@ uvicorn app.main:app --reload   # เปิด AI ที่ http://localhost:800
 สมัครที่ https://supabase.com (ฟรี) → สร้าง project ใหม่ → คัดลอก **Project URL** + **anon/publishable key** ไปใส่ใน `.env`
 
 ### 2. รัน Database Migration
-ไปที่ Supabase Dashboard → **SQL Editor** → รันตามลำดับ:
-- เนื้อหา `supabase/migrations/0001_init.sql` (ตาราง + RLS)
-- เนื้อหา `supabase/migrations/0003_photo_faces.sql` (ตารางหน้า + pgvector + ฟังก์ชันค้นหา)
+ไปที่ Supabase Dashboard → **SQL Editor** → รัน**ทุกไฟล์ตามลำดับ** (ไฟล์หลังๆ เป็นส่วนเพิ่มและรันซ้ำได้):
 
-> หมายเหตุ: migration 0002 ถูกลบแล้ว (schema เก่าที่ถูก 0003 ทดแทน) ให้รันแค่ 0001 กับ 0003
+| ไฟล์ | เนื้อหา |
+|------|---------|
+| `0001_init.sql` | ตาราง `profiles` / `albums` / `photos` + RLS + trigger สร้างโปรไฟล์ |
+| `0003_photo_faces.sql` | ตาราง `photo_faces` + pgvector + ฟังก์ชันค้นหาใบหน้า |
+| `0004_fix_table_grants.sql` | GRANT ให้ `anon` / `authenticated` / `service_role` |
+| `0005_user_role_and_deletion_requests.sql` | เพิ่ม role `user` + ตาราง `photo_deletion_requests` |
+| `0006_fix_deletion_requests_rls.sql` | แก้ RLS ของคำขอลบรูปให้ผู้ใช้ยื่นคำขอได้ |
+| `0007_force_user_role_on_signup.sql` | บังคับสมาชิกสมัครใหม่เป็น role `user` |
+| `0008_fix_role_check_constraint.sql` | แก้ check constraint ของ role |
+| `0009_profile_faces.sql` | `profiles.avatar_path` + ตาราง `profile_faces` (ไบโอเมตริก) + ฟังก์ชันค้นหาด้วยโปรไฟล์ |
 
-### 3. ตั้งค่า RLS + GRANT (ทำครั้งเดียว หลัง migration)
-รันใน SQL Editor:
+> หมายเหตุ: `0002` ถูกลบแล้ว (schema เก่าที่ถูก 0003 ทดแทน) — ข้ามไฟล์นี้ได้เลย
+
+### 3. ตรวจ RLS + GRANT (ปกติ `0004` ทำให้แล้ว)
+ถ้าเจอ error `permission denied for table ...` ให้รันใน SQL Editor อีกครั้ง:
 
 ```sql
 grant all on public.albums to authenticated;
@@ -131,7 +157,7 @@ begin
   select * into rec from public.profiles where id = auth.uid();
   if rec.id is null then
     insert into public.profiles (id, email, display_name, role)
-    select auth.uid(), u.email, coalesce(u.raw_user_meta_data->>'display_name', u.email), 'photographer'
+    select auth.uid(), u.email, coalesce(u.raw_user_meta_data->>'display_name', u.email), 'user'
     from auth.users u where u.id = auth.uid()
     on conflict (id) do nothing
     returning * into rec;
@@ -176,9 +202,11 @@ create policy "photos_owner_delete"
   using (bucket_id = 'photos');
 ```
 
-### 6. สร้างบัญชีช่างภาพ
-ระบบ**ไม่มีปุ่มสมัครเอง** — ช่างภาพได้บัญชีจากแอดมินเท่านั้น:
-Dashboard → Authentication → Users → Add user → กรอก email + password → สร้าง (ระบบสร้างข้อมูลช่างภาพให้อัตโนมัติ) → ล็อกอินที่ `/login`
+### 6. บัญชีผู้ใช้
+- **สมาชิกทั่วไป** — สมัครเองได้ที่ `/login` → แท็บ "สมัครสมาชิก" ด้วยอีเมล `@psru.ac.th` เท่านั้น (ระบบตั้ง role เป็น `user` ให้อัตโนมัติ)
+- **ช่างภาพ / แอดมิน** — สร้างโดยแอดมิน: Dashboard → Authentication → Users → Add user → กรอก email + password → สร้าง → ล็อกอินที่ `/login` แล้วแก้ role ในตาราง `profiles` เป็น `photographer` หรือ `admin`
+
+> ครั้งแรกที่สมาชิกทั่วไปล็อกอิน ระบบจะพาไปหน้า `/setup-profile` เพื่ออัปโหลดรูปโปรไฟล์ + ลงทะเบียนใบหน้า ก่อนใช้งานส่วนอื่น
 
 ### 7. ตั้งค่า `.env` ฝั่งเว็บ
 คัดลอก `.env.example` → `.env` แล้วใส่ค่า:
@@ -215,6 +243,9 @@ python -m scripts.backfill_thumbs            # สร้าง thumbnail ที�
 - ✅ **Service Role Key อยู่ฝั่ง server เท่านั้น** — ไม่อยู่ในโค้ดหน้าเว็บ
 - ✅ **envGuard** — เว็บตรวจตอนเปิดว่าไม่มีคีย์ลับหลุดเข้าไปใน bundle
 - ✅ **ฟังก์ชัน `get_my_profile`** — ข้าม RLS แค่สำหรับข้อมูลตัวเอง (security definer)
+- ✅ **ไบโอเมตริกแยกตาราง** — `profile_faces` ถูก revoke จาก `anon`/`authenticated` + force RLS; เข้าถึงได้เฉพาะ service role ฝั่ง backend
+- ✅ **Role guard** — trigger บังคับสมาชิกใหม่เป็น `user` และบล็อกการเปลี่ยน role จากฝั่ง client
+- ✅ **คำขอลบรูปมี RLS** — ผู้ใช้เห็น/ยื่นได้เฉพาะคำขอของตัวเอง; ช่างภาพ/แอดมินเท่านั้นที่อนุมัติได้
 
 ---
 
@@ -262,15 +293,22 @@ wrangler deploy      # อัปโหลด worker ขึ้น https://cs.face
 Face_Scan/
 ├── src/                        # หน้าเว็บ (React + TypeScript)
 │   ├── lib/                    # ตัวติดต่อ: Supabase, Storage, AI, ประเภทข้อมูล
-│   │   └── storage/            # ตัวเลือกที่เก็บรูป: r2Storage (ใช้จริง) / supabaseStorage / mock
-│   ├── components/             # ส่วนประกอบ UI (Header, Gallery, Dashboard...)
-│   ├── pages/                  # หน้าเว็บ (Home, Gallery, Album, Login, Dashboard*)
+│   │   ├── storage/            # ตัวเลือกที่เก็บรูป: r2Storage (ใช้จริง) / supabaseStorage / mock
+│   │   ├── profileFaceService.ts      # enroll/ค้นหาด้วยใบหน้าจากโปรไฟล์
+│   │   ├── deletionRequestService.ts  # คำขอลบรูป
+│   │   ├── faceSearchService.ts       # เรียก AI ค้นหาใบหน้า
+│   │   └── envGuard.ts                # ตรวจคีย์ลับหลุดเข้า bundle
+│   ├── components/             # ส่วนประกอบ UI
+│   │   ├── auth/ProfileGate.tsx       # บังคับตั้งโปรไฟล์ก่อนใช้งาน
+│   │   ├── profile/ProfilePhotoUploader.tsx
+│   │   └── WatermarkOverlay.tsx       # ลายน้ำ + anti-copy
+│   ├── pages/                  # Home, Gallery, Album, Login, SetupProfile, Dashboard*
 │   └── App.tsx / main.tsx      # จุดเริ่มของเว็บ + เส้นทางหน้า
 ├── backend/                    # ตัว AI (Python + FastAPI)
 │   ├── app/
 │   │   ├── main.py             # จุดเริ่ม AI + background sweeper (thumbnail)
 │   │   ├── face_engine.py      # ตรวจจับ/แปลงใบหน้าเป็นตัวเลข (InsightFace)
-│   │   ├── routes_faces.py     # API: index / search / health
+│   │   ├── routes_faces.py     # API: index / search / profile/enroll / profile/search / health
 │   │   ├── indexer.py          # ตรรกะสแกนหน้า + สร้าง thumbnail + sweeper
 │   │   ├── image_io.py         # โหลด/ย่อ/เข้ารหัสรูป (thumbnail)
 │   │   ├── supabase_client.py  # ติดต่อ Supabase + ดึงรูป/เขียน thumbnail ไป R2
@@ -282,10 +320,12 @@ Face_Scan/
 │   ├── src/index.js            # /upload, /delete, /upload-thumb, /view
 │   ├── wrangler.toml           # เชื่อม bucket R2 ชื่อ face-scan-images
 │   └── package.json
-├── supabase/migrations/        # คำสั่งสร้างฐานข้อมูล (รันทีละไฟล์)
+├── supabase/migrations/        # คำสั่งสร้างฐานข้อมูล (รันตามลำดับ 0001 → 0009)
 │   ├── 0001_init.sql           # ตาราง + RLS
 │   ├── 0003_photo_faces.sql    # ตารางหน้า + pgvector + ฟังก์ชันค้นหา
-│   └── 0004_fix_table_grants.sql  # แก้ GRANT/Policy ให้เขียนข้อมูลได้
+│   ├── 0004_fix_table_grants.sql
+│   ├── 0005…0008_*.sql         # role user + คำขอลบรูป + trigger/constraint
+│   └── 0009_profile_faces.sql  # โปรไฟล์ใบหน้า + avatar + ฟังก์ชันค้นหา
 ├── deploy*.bat                 # สคริปต์ deploy ขึ้น Cloud Run
 ├── cloudbuild.yaml             # CI: Build + Push + Deploy ไป Cloud Run
 ├── Dockerfile / railway.json   # ทางเลือก deploy AI ผ่าน Railway
@@ -294,6 +334,12 @@ Face_Scan/
 
 ---
 
-  ## สิ่งที่วางแผนไว้ (Roadmap)
+## สิ่งที่วางแผนไว้ (Roadmap)
 
-  > ปัจจุบันใช้อยู่แล้ว: **Cloudflare R2** ผ่าน Worker (เก็บรูปจริงเป็นหลัก) · **thumbnail** อัตโนมัติ (sweeper + backfill) · migration 0004 แก้ GRANT/RLS · deploy สามชั้น Vercel + Cloud Run + R2 Worker
+> ปัจจุบันใช้อยู่แล้ว: **Cloudflare R2** ผ่าน Worker (เก็บรูปจริงเป็นหลัก) · **thumbnail** อัตโนมัติ (sweeper + backfill) · migration 0001 → 0009 · deploy สามชั้น Vercel + Cloud Run + R2 Worker · สมัครสมาชิก `@psru.ac.th` · โปรไฟล์ใบหน้า (enroll/verify) · คำขอลบรูป · watermark/anti-copy
+
+แนวทางที่ยังทำได้ต่อ:
+- แจ้งเตือนสมาชิกเมื่อคำขอลบรูปได้รับการอนุมัติ/ปฏิเสธ
+- หน้าจัดการผู้ใช้สำหรับแอดมิน (เปลี่ยน role ได้จาก UI)
+- ลบ/ปิดใช้งานบัญชี (PDPA right to erasure) พร้อมลบ embedding ที่เกี่ยวข้อง
+- จำกัดจำนวนครั้งการค้นหาต่อผู้ใช้ (rate limit) และ audit log การเข้าถึงข้อมูลไบโอเมตริก
